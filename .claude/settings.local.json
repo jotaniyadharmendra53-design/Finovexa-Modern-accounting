@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(taskkill /F /IM \"InvoiceSaaS.Web.exe\")",
+      "Bash(taskkill /F /IM \"dotnet.exe\")",
+      "Bash(wmic process:*)",
+      "Bash(taskkill /F /PID 29968)",
+      "Bash(cmd.exe /c \"taskkill /F /PID 29968\")",
+      "Bash(powershell -Command \"Stop-Process -Id 29968 -Force -ErrorAction SilentlyContinue; Write-Host ''Killed''\")"
+    ]
+  }
+}

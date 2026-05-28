@@ -1,0 +1,143 @@
+﻿@{
+    bool isEdit = ViewData.Model is InvoiceSaaS.Application.DTOs.Users.UpdateUserDto;
+    string? id       = null;
+    string? fullName = null;
+    string? email    = null;
+    string? phone    = null;
+    string? roleId   = null;
+    bool    isActive = true;
+
+    if (isEdit && ViewData.Model is InvoiceSaaS.Application.DTOs.Users.UpdateUserDto eu)
+    {
+        id       = eu.Id.ToString();
+        fullName = eu.FullName;
+        email    = eu.Email;
+        phone    = eu.Phone;
+        roleId   = eu.RoleId.ToString();
+        isActive = eu.IsActive;
+    }
+
+    var roles = (ViewBag.Roles as IEnumerable<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>)
+                ?? Enumerable.Empty<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>();
+}
+
+<form id="userForm" data-id="@id">
+    @Html.AntiForgeryToken()
+    <div class="p-4">
+        <div class="row g-3">
+
+            <!-- Full Name -->
+            <div class="col-12">
+                <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0" id="fullName"
+                           value="@fullName" placeholder="John Smith" maxlength="150" required/>
+                </div>
+            </div>
+
+            <!-- Email -->
+            <div class="col-12">
+                <label class="form-label">Email Address <span class="text-danger">*</span></label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+                    <input type="email" class="form-control border-start-0" id="userEmail"
+                           value="@email" placeholder="john@example.com" maxlength="200" required/>
+                </div>
+            </div>
+
+            <!-- Phone -->
+            <div class="col-md-6">
+                <label class="form-label">Phone</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-telephone text-muted"></i></span>
+                    <input type="tel" class="form-control border-start-0" id="phone"
+                           value="@phone" placeholder="+1 555 0100" maxlength="20"/>
+                </div>
+            </div>
+
+            <!-- Role -->
+            <div class="col-md-6">
+                <label class="form-label">Role <span class="text-danger">*</span></label>
+                <select class="form-select" id="roleId" required>
+                    <option value="">— Select Role —</option>
+                    @foreach (var r in roles)
+                    {
+                        @* <option value="@r.Value" @(r.Value == roleId ? "selected" : "")>@r.Text</option> *@
+                        <option value="@r.Value" selected="@(r.Value == roleId ? "selected" : null)">
+                            @r.Text
+                        </option>
+                    }
+                </select>
+            </div>
+
+            @if (!isEdit)
+            {
+                <!-- Password -->
+                <div class="col-md-6">
+                    <label class="form-label">Password <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
+                        <input type="password" class="form-control border-start-0" id="password"
+                               placeholder="Min. 8 characters" autocomplete="new-password"/>
+                        <button type="button" class="btn btn-outline-secondary border-start-0"
+                                onclick="togglePass('password','iconPwd')">
+                            <i class="bi bi-eye" id="iconPwd"></i>
+                        </button>
+                    </div>
+                    <div class="form-text text-muted fs-12">Min. 8 chars, 1 uppercase, 1 number, 1 special.</div>
+                </div>
+
+                <!-- Confirm Password -->
+                <div class="col-md-6">
+                    <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock-fill text-muted"></i></span>
+                        <input type="password" class="form-control border-start-0" id="confirmPassword"
+                               placeholder="Repeat password" autocomplete="new-password"/>
+                        <button type="button" class="btn btn-outline-secondary border-start-0"
+                                onclick="togglePass('confirmPassword','iconConf')">
+                            <i class="bi bi-eye" id="iconConf"></i>
+                        </button>
+                    </div>
+                </div>
+            }
+
+            <!-- Active + Welcome email -->
+            <div class="col-12">
+                <div class="d-flex flex-wrap gap-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="isActive"
+                               @(isActive ? "checked" : "")/>
+                        <label class="form-check-label fs-13" for="isActive">Active</label>
+                    </div>
+                    @if (!isEdit)
+                    {
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="sendWelcome" checked/>
+                            <label class="form-check-label fs-13" for="sendWelcome">Send welcome email</label>
+                        </div>
+                    }
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="modal-footer border-top">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary px-4" id="saveUserBtn" onclick="saveUser()">
+            <i class="bi bi-check-lg me-2"></i>@(isEdit ? "Save Changes" : "Create User")
+        </button>
+    </div>
+</form>
+
+<script>
+function togglePass(inputId, iconId) {
+    const i = document.getElementById(inputId);
+    const ok = document.getElementById(iconId);
+    const show = i.type === 'password';
+    i.type = show ? 'text' : 'password';
+    ok.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+}
+</script>

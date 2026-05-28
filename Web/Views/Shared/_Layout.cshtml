@@ -1,0 +1,301 @@
+@{
+    var activeMenu   = ViewBag.ActiveMenu as string ?? "dashboard";
+    var userName     = ViewBag.CurrentUserName as string ?? "User";
+    var userEmail    = ViewBag.CurrentEmail as string ?? "";
+    var userRole     = ViewBag.CurrentRole as string ?? "";
+    var isSuperAdmin = (bool)(ViewBag.IsSuperAdmin ?? false);
+    var companyLogo  = ViewBag.CompanyLogo as string ?? null;
+    var perms        = ViewBag.Permissions as HashSet<string> ?? new HashSet<string>();
+
+    bool Can(string code) => isSuperAdmin || userRole == "Admin" || perms.Contains(code);
+    string NavLink(string menu) => activeMenu == menu ? "nav-link active" : "nav-link";
+}
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="csrf-token" content="@Antiforgery.GetAndStoreTokens(Context).RequestToken"/>
+    @{
+        var __pageTitle = ViewData["Title"] as string;
+        var __fullTitle = string.IsNullOrWhiteSpace(__pageTitle)
+            ? "Finovexa — AllUpNext"
+            : $"{__pageTitle} — Finovexa — AllUpNext";
+    }
+    <title>@__fullTitle</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"/>
+
+    <!-- Vendor CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.8/sweetalert2.min.css"/>
+
+    @* <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" /> *@
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="~/css/site.css"/>
+
+    @await RenderSectionAsync("Styles", required: false)
+
+    <!-- Restore theme before paint -->
+    <script>
+        (function(){
+            var t = localStorage.getItem('theme');
+            if (t === 'dark') document.documentElement.setAttribute('data-theme','dark');
+        })();
+    </script>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="sidebar">
+    <a class="sidebar-brand" href="/Dashboard">
+        <div class="brand-icon" style="display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:10px;">
+            @if (!string.IsNullOrEmpty(companyLogo))
+            {
+                <img src="@companyLogo" alt="Company" style="height:50px;width:50px;object-fit:contain;border-radius:8px;background:#fff;padding:6px;box-shadow:0 1px 3px rgba(0,0,0,0.06);" />
+            }
+            else
+            {
+                <i class="bi bi-receipt-cutoff"></i>
+            }
+        </div>
+        <div>
+            <div class="brand-text">Finovexa</div>
+                <div class="brand-sub">Modern Accounting</div>
+        </div>
+    </a>
+
+    <div class="sidebar-nav">
+
+        
+            @* ═══════════════════════════════════════════════════════
+           SUPER ADMIN NAVIGATION — platform-only, no company data
+           ═══════════════════════════════════════════════════════ *@
+            @if (isSuperAdmin)
+            {
+                <div class="nav-section-title">Platform</div>
+                <a class="@NavLink("dashboard")" href="/Dashboard">
+                    <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+                </a>
+                <a class="@NavLink("companies")" href="/SuperAdmin/Company">
+                    <i class="bi bi-buildings"></i><span>Companies</span>
+                </a>
+
+                <div class="nav-section-title">Account</div>
+                <a class="@NavLink("profile")" href="/Account/ChangePassword">
+                    <i class="bi bi-key"></i><span>Change Password</span>
+                </a>
+            }
+
+                @if (!isSuperAdmin)
+                {
+
+                    <div class="nav-section-title">Main</div>
+                    <a class="@NavLink("dashboard")" href="/Dashboard"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+
+                    @if (Can("invoices.view"))
+                    {
+                        <a class="@NavLink("invoices")" href="/Invoice"><i class="bi bi-file-earmark-text"></i><span>Invoices</span></a>
+                         @* <a class="@NavLink("templates")" href="/Invoice/Templates"><i class="bi bi-palette"></i><span>PDF Templates</span></a>  *@
+                   
+                    @* <a class="@NavLink("templates") no-pjax" href="/Invoice/Templates"><i class="bi bi-palette"></i><span>PDF Templates</span></a> *@
+                    }
+                    @if (Can("templates.view")) 
+                    {
+                         <a class="@NavLink("templates")" href="/Invoice/Templates">
+                         <i class="bi bi-palette"></i><span>PDF Templates</span></a>
+                    }
+                    
+                    @if (Can("clients.view"))
+                    {
+                        <a class="@NavLink("clients")" href="/Client"><i class="bi bi-people"></i><span>Clients</span></a>
+                    }
+
+                    @if (Can("users.view") || Can("roles.view") || isSuperAdmin)
+                    {
+                        <div class="nav-section-title">Administration</div>
+                        @if (Can("users.view"))
+                        {
+                            <a class="@NavLink("users")" href="/User"><i class="bi bi-person-badge"></i><span>Users</span></a>
+                        }
+                        @if (Can("roles.view"))
+                        {
+                            <a class="@NavLink("roles")" href="/Role"><i class="bi bi-shield-check"></i><span>Roles & Permissions</span></a>
+                        }
+                        @if (isSuperAdmin)
+                        {
+                            <a class="@NavLink("companies")" href="/SuperAdmin/Company"><i class="bi bi-buildings"></i><span>Companies</span></a>
+                        }
+                    }
+
+                    @if (Can("invoices.view") || Can("estimates.view") || Can("sales.view") ||
+                                                     Can("expenses.view") || Can("payments.view") || Can("products.view") ||
+                                                     Can("vendors.view") || Can("accounting.view"))
+                    {
+                        <div class="nav-section-title">Accounting</div>
+
+                        @if (Can("products.view"))
+                        {
+                            <a class="@NavLink("products")" href="/Product">
+                                <i class="bi bi-box-seam"></i><span>Products</span>
+                            </a>
+                        }
+                        @if (Can("vendors.view"))
+                        {
+                            <a class="@NavLink("vendors")" href="/Vendor">
+                                <i class="bi bi-truck"></i><span>Vendors</span>
+                            </a>
+                        }
+                        @if (Can("estimates.view"))
+                        {
+                            <a class="@NavLink("estimates")" href="/Estimate">
+                                <i class="bi bi-file-earmark-check"></i><span>Estimates</span>
+                            </a>
+                        }
+                        @if (Can("sales.view"))
+                        {
+                            <a class="@NavLink("sales")" href="/Sale">
+                                <i class="bi bi-cart-check"></i><span>Sales</span>
+                            </a>
+                        }
+                        @if (Can("expenses.view"))
+                        {
+                            <a class="@NavLink("expenses")" href="/Expense">
+                                <i class="bi bi-wallet2"></i><span>Expenses</span>
+                            </a>
+                        }
+                        @if (Can("payments.view"))
+                        {
+                            <a class="@NavLink("payments")" href="/Payment">
+                                <i class="bi bi-credit-card"></i><span>Payments</span>
+                            </a>
+                        }
+                        @if (Can("accounting.view"))
+                        {
+                            <a class="@NavLink("accounting")" href="/Accounting">
+                                <i class="bi bi-bar-chart-steps"></i><span>Accounting</span>
+                            </a>
+                        }
+                    }
+
+                    @if (Can("reports.view"))
+                    {
+                        <div class="nav-section-title">Analytics</div>
+                        <a class="@NavLink("reports")" href="/Report"><i class="bi bi-bar-chart-line"></i><span>Reports</span></a>
+                    }
+
+                    <div class="nav-section-title">Account</div>
+                    @if (Can("company.edit"))
+                    {
+                        @if (Can("company.view"))
+                        {
+                            <a class="@NavLink("fiscalyear")" href="/FiscalYear"><i class="bi bi-calendar-check"></i><span>Fiscal Years</span></a>
+                        }
+                    }
+                    <a class="@NavLink("profile")" href="/Account/ChangePassword"><i class="bi bi-key"></i><span>Change Password</span></a>
+
+                }   
+
+    </div>
+
+
+
+    <div class="sidebar-credit">
+        <span class="sidebar-credit__dot"></span>
+        <span>Powered by <strong>AllUpNext</strong></span>
+    </div>
+
+    <div class="sidebar-user">
+        <div class="user-avatar">@(userName.Length > 0 ? userName[0].ToString().ToUpper() : "U")</div>
+        <div class="overflow-hidden">
+            <div class="user-name text-truncate">@userName</div>
+            <div class="user-role">@userRole</div>
+        </div>
+        <form method="post" action="/Account/Logout" style="margin-left:auto;">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="user-logout" title="Sign Out"><i class="bi bi-box-arrow-right"></i></button>
+        </form>
+    </div>
+</nav>
+
+<!-- NAVBAR -->
+<header class="main-navbar">
+    <button class="sidebar-toggle" id="sidebarToggle"><i class="bi bi-list"></i></button>
+    <div class="navbar-title">@(ViewData["Title"] ?? "Dashboard")</div>
+    <div class="navbar-right">
+        <button class="theme-toggle" id="themeToggle" title="Toggle Dark Mode">
+            <i class="bi bi-moon"></i>
+        </button>
+        <!-- <button class="btn-icon" title="Notifications"><i class="bi bi-bell"></i></button> -->
+        <div class="dropdown">
+            <div class="navbar-user" data-bs-toggle="dropdown">
+                <div class="avatar-sm">@(userName.Length > 0 ? userName[0].ToString().ToUpper() : "U")</div>
+                <div class="d-none d-sm-block">
+                    <div class="u-name">@userName</div>
+                    <div class="u-role">@userRole</div>
+                </div>
+                <i class="bi bi-chevron-down ms-1 text-muted" style="font-size:.65rem;"></i>
+            </div>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <div class="px-3 py-2 border-bottom mb-1">
+                        <div style="font-size:.8rem;font-weight:600;">@userName</div>
+                        <div style="font-size:.73rem;color:var(--text-muted);">@userEmail</div>
+                    </div>
+                </li>
+                <li><a class="dropdown-item rounded-2 py-2" href="/Account/ChangePassword"><i class="bi bi-key me-2 text-muted"></i>Change Password</a></li>
+                @* @if (Can("company.view")) {
+                        <li><a class="dropdown-item rounded-2 py-2" href="/Company"><i class="bi bi-building-gear me-2 text-muted"></i>Company Settings</a></li>
+                } *@
+                    @if (!isSuperAdmin && perms.Contains("company.view"))
+                    {
+                        <li>
+                            <a class="dropdown-item rounded-2 py-2" href="/Company">
+                                <i class="bi bi-building-gear me-2 text-muted"></i>
+                                Company Settings
+                            </a>
+                        </li>
+                    }
+                <li><hr class="dropdown-divider my-1"/></li>
+                <li>
+                    <form method="post" action="/Account/Logout">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="dropdown-item rounded-2 py-2 text-danger"><i class="bi bi-box-arrow-right me-2"></i>Sign Out</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>                                                                                                                                                                                                                                      
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="main-content">
+    <div class="content-wrapper page-enter">
+        @if (TempData["ToastSuccess"] != null) {
+        <div class="d-none" id="serverToast" data-type="success" data-msg="@TempData["ToastSuccess"]"></div>
+        }
+        @if (TempData["ToastError"] != null) {
+        <div class="d-none" id="serverToast" data-type="error" data-msg="@TempData["ToastError"]"></div>
+        }
+        @RenderBody()
+    </div>
+</main>
+
+<!-- SCRIPTS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.8/sweetalert2.min.js"></script>
+    <script src="~/js/countryData.js"></script>
+
+<script src="~/js/site.js"></script>
+@await RenderSectionAsync("Scripts", required: false)
+    @* <div id="pjax-scripts">@await RenderSectionAsync("Scripts", required: false)</div> *@
+</body>
+</html>

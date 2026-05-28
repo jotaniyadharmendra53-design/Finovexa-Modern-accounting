@@ -1,0 +1,583 @@
+﻿@model InvoiceSaaS.Application.DTOs.Invoices.InvoiceDto
+@using InvoiceSaaS.Domain.Enums
+@{
+    ViewData["Title"] = Model.InvoiceNumber;
+    ViewBag.ActiveMenu = "invoices";
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    var perms = (ViewBag.Permissions as HashSet<string>) ?? new HashSet<string>();
+    bool can(string c) => isSA || perms.Contains(c);
+
+    var statusCls = Model.StatusName switch
+    {
+        "Draft" => "draft",
+        "Sent" => "sent",
+        "Paid" => "paid",
+        "Overdue" => "overdue",
+        "Cancelled" => "cancelled",
+        "PartiallyPaid" => "partial",
+        _ => "draft"
+    };
+}
+
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+        <div class="d-flex align-items-center gap-3 mb-1">
+            <h4 class="mb-0">@Model.InvoiceNumber</h4>
+            <span class="status-badge @statusCls">@Model.StatusName</span>
+        </div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="/Invoice">Invoices</a></li>
+                <li class="breadcrumb-item active">@Model.InvoiceNumber</li>
+            </ol>
+        </nav>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="/Invoice/Print/@Model.Id" target="_blank" class="btn btn-outline-secondary">
+            <i class="bi bi-printer me-1"></i>Print
+        </a>
+        @* @if (can("invoices.edit") && Model.Status == InvoiceStatus.Draft)
+        {
+            <a href="/Invoice/Edit/@Model.Id" class="btn btn-outline-warning">
+                <i class="bi bi-pencil me-1"></i>Edit
+            </a>
+        } *@
+        @if (can("invoices.edit") && Model.Status is not InvoiceStatus.Paid and not InvoiceStatus.Cancelled)
+        {
+            <a href="/Invoice/Edit/@Model.Id" class="btn btn-outline-warning">
+                <i class="bi bi-pencil me-1"></i>Edit
+                @if (Model.Status != InvoiceStatus.Draft)
+                {
+                    <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">Remark required</span>
+                }
+            </a>
+        }
+        @if (can("invoices.send") && Model.Status is InvoiceStatus.Draft or InvoiceStatus.Sent)
+        {
+            <button class="btn btn-success" onclick="sendInv('@Model.Id','@Model.InvoiceNumber')">
+                <i class="bi bi-send me-1"></i>Send to Client
+            </button>
+        }
+        @* @if (can("invoices.paid") && Model.Status is InvoiceStatus.Sent or InvoiceStatus.Overdue or InvoiceStatus.PartiallyPaid)
+        {
+            <button class="btn btn-primary" onclick="markPaid('@Model.Id', @Model.BalanceDue.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))">
+                <i class="bi bi-check-circle me-1"></i>Mark Paid
+            </button>
+        } *@
+
+        @* @if (can("invoices.paid") && Model.Status is InvoiceStatus.Sent or InvoiceStatus.Overdue or InvoiceStatus.PartiallyPaid)
+        {
+            var balanceDue = Model.BalanceDue.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+            <button class="btn btn-primary" onclick="markPaid('@Model.Id', @balanceDue)">
+                <i class="bi bi-check-circle me-1"></i>Mark Paid
+            </button>
+        } *@
+
+        @if (can("invoices.edit") && Model.Status is not InvoiceStatus.Paid and not InvoiceStatus.Cancelled)
+        {
+            <button class="btn btn-outline-secondary" onclick="cancelInv('@Model.Id')">
+                <i class="bi bi-x-circle me-1"></i>Cancel
+            </button>
+        }
+
+        @if (Model.Status == InvoiceStatus.PartiallyPaid && Model.BalanceDue > 0)
+        {
+            <button class="btn btn-outline-secondary"
+                    onclick="writeOff('@Model.Id', '@Model.BalanceDue.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)', '@Model.CurrencyCode')">
+                <i class="bi bi-eraser me-1"></i>Write Off Balance
+            </button>
+        }
+
+        @if (can("invoices.delete") && Model.Status != InvoiceStatus.Paid)
+        {
+            <button class="btn btn-outline-danger" onclick="deleteInv('@Model.Id','@Model.InvoiceNumber')">
+                <i class="bi bi-trash me-1"></i>Delete
+            </button>
+        }
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <!-- ── Invoice Preview ───────────────────────────────────── -->
+    <div class="col-xl-8">
+        <div class="card border-0 shadow-sm" id="invoicePreview">
+            <div class="card-body p-4 p-md-5">
+
+                <!-- Company + Invoice Header -->
+                <div class="d-flex justify-content-between align-items-start mb-5 flex-wrap gap-3">
+
+                    <div>
+                        <!-- ✅ ADD LOGO HERE -->
+                        @if (!string.IsNullOrEmpty(Model.CompanyLogo))
+                        {
+                            <img src="/uploads/logos/@Model.CompanyLogo" alt="@Model.CompanyName"
+                                 style="max-height:60px;max-width:140px;object-fit:contain;" />
+                        }
+                        <h3 class="fw-700 mb-1" style="color:var(--primary);">@Model.CompanyName</h3>
+                    </div>
+                    <div class="text-md-end">
+                        <h2 class="fw-700 mb-1" style="color:var(--primary);">INVOICE</h2>
+                        <div class="fw-600 fs-13"># @Model.InvoiceNumber</div>
+                        <span class="status-badge @statusCls mt-1">@Model.StatusName</span>
+                    </div>
+                </div>
+
+                <!-- Bill To + Dates -->
+                <div class="row mb-5">
+                    <div class="col-md-6">
+                        <div class="text-muted fs-12 fw-600 text-uppercase mb-2">Bill To</div>
+                        <div class="fw-700 fs-13">@Model.ClientName</div>
+                        @if (!string.IsNullOrEmpty(Model.ClientEmail))
+                        {
+                            <div class="text-muted fs-13">@Model.ClientEmail</div>
+                        }
+                    </div>
+                    <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                        <table class="ms-md-auto" style="font-size:.875rem;">
+                            <tr>
+                                <td class="text-muted pe-3">Issue Date:</td>
+                                <td class="fw-600">@Model.IssueDate.ToString("dd MMM yyyy")</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted pe-3">Due Date:</td>
+                                <td class="fw-600 text-danger @(Model.Status == InvoiceStatus.Overdue ? "text-danger" : "")">
+                                    @Model.DueDate.ToString("dd MMM yyyy")
+                                </td>
+                            </tr>
+                            @if (Model.SentAt.HasValue)
+                            {
+                                <tr>
+                                    <td class="text-muted pe-3">Sent:</td>
+                                    <td class="fw-600">@Model.SentAt.Value.ToString("dd MMM yyyy")</td>
+                                </tr>
+                            }
+                            @if (Model.PaidAt.HasValue)
+                            {
+                                <tr>
+                                    <td class="text-muted pe-3">Paid:</td>
+                                    <td class="fw-600 text-success">@Model.PaidAt.Value.ToString("dd MMM yyyy")</td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Line Items Table -->
+                <table class="table mb-4" style="border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#F9FAFB;border-bottom:2px solid #E5E7EB;">
+                            <th style="padding:.75rem 1rem;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;">Description</th>
+                            <th style="padding:.75rem .5rem;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;text-align:right;">Qty</th>
+                            <th style="padding:.75rem .5rem;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;text-align:right;">Unit Price</th>
+                            <th style="padding:.75rem 1rem;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6B7280;text-align:right;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items.OrderBy(i => i.SortOrder))
+                        {
+                            <tr style="border-bottom:1px solid #F3F4F6;">
+                                <td style="padding:.875rem 1rem;color:#374151;">@item.Description</td>
+                                <td style="padding:.875rem .5rem;text-align:right;color:#6B7280;">@item.Quantity.ToString("G29")</td>
+                                <td style="padding:.875rem .5rem;text-align:right;color:#6B7280;">@item.UnitPrice.ToString("N2")</td>
+                                <td style="padding:.875rem 1rem;text-align:right;font-weight:600;color:#374151;">@item.Amount.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <!-- Totals -->
+                <div class="d-flex justify-content-end">
+                    <div style="min-width:240px;">
+                        <div class="d-flex justify-content-between py-2" style="font-size:.875rem;color:#6B7280;border-bottom:1px solid #F3F4F6;">
+                            <span>Subtotal</span>
+                            <span>@Model.SubTotal.ToString("N2") @Model.CurrencyCode</span>
+                        </div>
+                        @if (Model.TaxRate > 0)
+                        {
+                            <div class="d-flex justify-content-between py-2" style="font-size:.875rem;color:#6B7280;border-bottom:1px solid #F3F4F6;">
+                                <span>Tax (@Model.TaxRate.ToString("G29")%)</span>
+                                <span>@Model.TaxAmount.ToString("N2") @Model.CurrencyCode</span>
+                            </div>
+                        }
+                        @if (Model.Discount > 0)
+                        {
+                            <div class="d-flex justify-content-between py-2" style="font-size:.875rem;color:#059669;border-bottom:1px solid #F3F4F6;">
+                                <span>Discount</span>
+                                <span>-@Model.Discount.ToString("N2") @Model.CurrencyCode</span>
+                            </div>
+                        }
+                        <div class="d-flex justify-content-between py-3" style="font-size:1.1rem;font-weight:700;border-top:2px solid #E5E7EB;">
+                            <span>Total</span>
+                            <span style="color:var(--primary);">@Model.Total.ToString("N2") @Model.CurrencyCode</span>
+                        </div>
+                        @if (Model.PaidAmount > 0)
+                        {
+                            <div class="d-flex justify-content-between py-2" style="font-size:.875rem;color:#059669;">
+                                <span>Paid</span>
+                                <span>-@Model.PaidAmount.ToString("N2") @Model.CurrencyCode</span>
+                            </div>
+                            <div class="d-flex justify-content-between py-2" style="font-size:1rem;font-weight:700;color:#DC2626;">
+                                <span>Balance Due</span>
+                                <span>@Model.BalanceDue.ToString("N2") @Model.CurrencyCode</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Notes) || !string.IsNullOrEmpty(Model.Terms))
+                {
+                    <hr class="my-4" />
+                    <div class="row g-3">
+                        @if (!string.IsNullOrEmpty(Model.Notes))
+                        {
+                            <div class="col-md-6">
+                                <div class="text-muted fs-12 fw-600 text-uppercase mb-1">Notes</div>
+                                <div class="fs-13 text-muted">@Model.Notes</div>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.Terms))
+                        {
+                            <div class="col-md-6">
+                                <div class="text-muted fs-12 fw-600 text-uppercase mb-1">Terms &amp; Conditions</div>
+                                <div class="fs-13 text-muted">@Model.Terms</div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Right Sidebar ─────────────────────────────────────── -->
+    <div class="col-xl-4">
+
+        <!-- Summary Card -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header"><span class="card-title">Payment Summary</span></div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted fs-13">Invoice Total</span>
+                    <span class="fw-700">@Model.Total.ToString("N2") @Model.CurrencyCode</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted fs-13">Amount Paid</span>
+                    <span class="fw-600 text-success">@Model.PaidAmount.ToString("N2") @Model.CurrencyCode</span>
+                </div>
+                <hr class="my-2" />
+                <div class="d-flex justify-content-between">
+                    <span class="fw-600">Balance Due</span>
+                    <span class="fw-700" style="color:@(Model.BalanceDue > 0 ? "#DC2626" : "#059669")">
+                        @Model.BalanceDue.ToString("N2") @Model.CurrencyCode
+                    </span>
+                </div>
+
+                @if (Model.BalanceDue > 0 && Model.Status is not InvoiceStatus.Cancelled)
+                {
+                    <div class="progress mt-3" style="height:6px;border-radius:3px;">
+                        @{
+                            var pct = Model.Total > 0
+                            ? (int)Math.Round(Model.PaidAmount / Model.Total * 100)
+                            : 0;
+                        }
+                        <div class="progress-bar bg-success" style="width:@pct%;border-radius:3px;"></div>
+                    </div>
+                    <div class="text-muted fs-12 mt-1">@pct% paid</div>
+                }
+            </div>
+        </div>
+
+        <!-- Client Info Card -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header"><span class="card-title">Client</span></div>
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="navbar-user-avatar" style="width:42px;height:42px;font-size:.9rem;">
+                        @(Model.ClientName.Length > 0
+                                                ? (Model.ClientName.Contains(' ')
+                                                ? $"{Model.ClientName.Split(' ')[0][0]}{Model.ClientName.Split(' ')[^1][0]}".ToUpper()
+                                                : Model.ClientName[0].ToString().ToUpper())
+                                                : "C")
+                    </div>
+                    <div>
+                        <div class="fw-700 fs-13">@Model.ClientName</div>
+                        @if (!string.IsNullOrEmpty(Model.ClientEmail))
+                        {
+                            <div class="text-muted fs-12">@Model.ClientEmail</div>
+                        }
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="/Invoice?clientId=@Model.ClientId" class="btn btn-outline-secondary btn-sm w-100">
+                        <i class="bi bi-receipt me-1"></i>View All Invoices
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timeline Card -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header"><span class="card-title">Timeline</span></div>
+            <div class="card-body p-3">
+                <div class="d-flex gap-3 mb-3">
+                    <div class="stat-icon indigo flex-shrink-0" style="width:34px;height:34px;font-size:.875rem;border-radius:8px;">
+                        <i class="bi bi-plus-circle"></i>
+                    </div>
+                    <div>
+                        <div class="fw-600 fs-13">Created</div>
+                        <div class="text-muted fs-12">@Model.CreatedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                    </div>
+                </div>
+                @if (Model.SentAt.HasValue)
+                {
+                    <div class="d-flex gap-3 mb-3">
+                        <div class="stat-icon blue flex-shrink-0" style="width:34px;height:34px;font-size:.875rem;border-radius:8px;">
+                            <i class="bi bi-send"></i>
+                        </div>
+                        <div>
+                            <div class="fw-600 fs-13">Sent to Client</div>
+                            <div class="text-muted fs-12">@Model.SentAt.Value.ToString("dd MMM yyyy, HH:mm")</div>
+                        </div>
+                    </div>
+                }
+                @if (Model.PaidAt.HasValue)
+                {
+                    <div class="d-flex gap-3">
+                        <div class="stat-icon green flex-shrink-0" style="width:34px;height:34px;font-size:.875rem;border-radius:8px;">
+                            <i class="bi bi-check-circle"></i>
+                        </div>
+                        <div>
+                            <div class="fw-600 fs-13">Payment Received</div>
+                            <div class="text-muted fs-12">@Model.PaidAt.Value.ToString("dd MMM yyyy, HH:mm")</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!--Edit History card -->
+
+        @if (Model.EditHistory.Any())
+        {
+            <div class="card border-0 shadow-sm mt-3">
+                <div class="card-header"><span class="card-title">Edit History</span></div>
+                <div class="card-body p-3">
+                    @foreach (var h in Model.EditHistory)
+                    {
+                        <div class="d-flex gap-3 mb-3">
+                            <div class="flex-shrink-0" style="width:34px;height:34px;border-radius:8px;
+                                background:#FEF3C7;color:#92400E;display:flex;align-items:center;justify-content:center;">
+                                <i class="bi bi-pencil fs-13"></i>
+                            </div>
+                            <div>
+                                <div class="fw-600 fs-13">Edited <span class="text-muted">(was @h.FromStatus)</span></div>
+                                <div class="text-muted fs-12">@h.EditedAt.ToString("dd MMM yyyy, HH:mm")</div>
+                                <div class="fs-12 mt-1 px-2 py-1 rounded"
+                                     style="background:#F9FAFB;color:#374151;font-style:italic;">
+                                    "@h.Remark"
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+    </div>
+</div>
+
+<!-- Mark Paid Modal -->
+<div class="modal fade" id="paidModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:400px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-check-circle me-2 text-success"></i>Record Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted fs-13 mb-3">
+                    Balance due: <strong id="paidBalanceDisplay">@Model.BalanceDue.ToString("N2") @Model.CurrencyCode</strong>
+                </p>
+                <label class="form-label">Amount Received</label>
+                <div class="input-group">
+                    <span class="input-group-text">@Model.CurrencyCode</span>
+                <input type="number" class="form-control" id="paidAmount"
+                       value="@Model.BalanceDue.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                       min="0.01" step="0.01"
+                       max="@Model.BalanceDue.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success px-4" id="btnConfirmPaid">
+                    <i class="bi bi-check-lg me-2"></i>Record Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const invId       = '@Model.Id';
+        const paidModal   = new bootstrap.Modal(document.getElementById('paidModal'));
+        let   pendingPaidId = null;
+
+        function sendInv(id, num) {
+            Swal.fire({
+                icon: 'question', title: 'Send Invoice?',
+                html: `Send <strong>${num}</strong> to <strong>@Model.ClientEmail</strong>?`,
+                showCancelButton: true, confirmButtonText: '<i class="bi bi-send me-1"></i>Yes, Send',
+                confirmButtonColor: '#10B981', cancelButtonColor: '#6B7280'
+            }).then(r => {
+                if (!r.isConfirmed) return;
+                Swal.fire({ title: 'Sending…', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                $.ajax({ url: '/Invoice/Send/' + id, type: 'POST', headers: { 'RequestVerificationToken': getCsrfToken() } })
+                    .done(res => {
+                        Swal.close();
+                        if (res.success) { Swal.fire({ icon:'success', title:'Sent!', text: res.message, timer:1500, showConfirmButton:false }).then(() => location.reload()); }
+                        else Swal.fire({ icon:'error', title:'Error', text: res.message, confirmButtonColor:'#2563EB' });
+                    }).fail(() => { Swal.close(); toastError('Server error.'); });
+            });
+        }
+
+        // writeOff
+
+                function writeOff(id, balance, currency) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Write Off Balance?',
+                html: `Remaining <strong>${currency} ${parseFloat(balance).toFixed(2)}</strong> will be written off and invoice marked as <strong>Paid</strong>.`,
+                showCancelButton: true,
+                confirmButtonText: '<i class="bi bi-eraser me-1"></i> Yes, Write Off',
+                confirmButtonColor: '#6B7280'
+            }).then(r => {
+                if (!r.isConfirmed) return;
+                $.ajax({ url: '/Invoice/WriteOff/' + id, type: 'POST',
+                         headers: { 'RequestVerificationToken': getCsrfToken() } })
+                .done(res => {
+                    if (res.success) { toastSuccess(res.message); setTimeout(() => location.reload(), 800); }
+                    else Swal.fire({ icon: 'error', title: 'Error', text: res.message, confirmButtonColor: '#2563EB' });
+                })
+                .fail(() => toastError('Server error.'));
+            });
+        }
+
+
+
+        // function markPaid(id, balance) {
+        //     pendingPaidId = id;
+        //     $('#paidAmount').val(parseFloat(balance).toFixed(2));
+        //     $('#paidBalanceDisplay').text(parseFloat(balance).toFixed(2) + ' @Model.CurrencyCode');
+        //     paidModal.show();
+        // }
+        function markPaid(id, balance) {
+            pendingPaidId = id;
+            const amt = parseFloat(balance);
+            const amtStr = isNaN(amt) ? '0.00' : amt.toFixed(2);
+            $('#paidAmount').val(amtStr);
+            $('#paidAmount').attr('max', amtStr);
+            $('#paidBalanceDisplay').text(amtStr + ' @Model.CurrencyCode');
+            paidModal.show();
+        }
+
+        // $('#btnConfirmPaid').on('click', function () {
+        //     const amt = +$('#paidAmount').val();
+        //     if (!amt || amt <= 0) { toastError('Enter a valid amount.'); return; }
+        //     const $btn = $(this);
+        //     setLoading($btn, true);
+        //     $.ajax({
+        //         url: '/Invoice/MarkPaid/' + pendingPaidId, type: 'POST',
+        //         contentType: 'application/json', data: JSON.stringify({ amount: amt }),
+        //         headers: { 'RequestVerificationToken': getCsrfToken() }
+        //     }).done(res => {
+        //         setLoading($btn, false);
+        //         if (res.success) { paidModal.hide(); toastSuccess(res.message); setTimeout(() => location.reload(), 700); }
+        //         else toastError(res.message);
+        //     }).fail(() => { setLoading($btn, false); toastError('Server error.'); });
+        // });
+
+
+                $('#btnConfirmPaid').on('click', function () {
+            const amt = parseFloat($('#paidAmount').val());
+            if (!amt || amt <= 0) { toastError('Enter a valid amount.'); return; }
+
+            const $btn = $(this);
+            // Manually disable button and show spinner
+            $btn.prop('disabled', true)
+                .html('<span class="spinner-border spinner-border-sm me-2"></span>Processing…');
+            // Validate against balance due (max)
+            const max = parseFloat($('#paidAmount').attr('max'));
+            if (!isNaN(max) && amt > max) {
+                $btn.prop('disabled', false)
+                    .html('<i class="bi bi-check-lg me-2"></i>Record Payment');
+                toastError('Amount cannot exceed the balance due.');
+                return;
+            }
+            $.ajax({
+                url: '/Invoice/MarkPaid/' + pendingPaidId,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ amount: amt }),
+                headers: { 'RequestVerificationToken': getCsrfToken() }
+            }).done(res => {
+                // Restore button
+                $btn.prop('disabled', false)
+                    .html('<i class="bi bi-check-lg me-2"></i>Record Payment');
+
+                if (res.success) {
+                    paidModal.hide();
+                    toastSuccess(res.message);
+                    setTimeout(() => location.reload(), 700);
+                } else {
+                    toastError(res.message);
+                }
+            }).fail(() => {
+                $btn.prop('disabled', false)
+                    .html('<i class="bi bi-check-lg me-2"></i>Record Payment');
+                toastError('Server error.');
+            });
+        });
+
+        // Prevent entering more than balance due while typing
+        $('#paidAmount').on('input', function () {
+            const max = parseFloat($(this).attr('max'));
+            const val = parseFloat($(this).val());
+            if (isNaN(val)) return;
+            if (!isNaN(max) && val > max) {
+                $(this).val(max.toFixed(2));
+                toastError('Amount cannot exceed the balance due.');
+            }
+        });
+
+
+        function cancelInv(id) {
+            Swal.fire({
+                icon: 'warning', title: 'Cancel Invoice?',
+                text: 'This invoice will be marked as Cancelled.',
+                showCancelButton: true, confirmButtonText: 'Yes, Cancel It',
+                confirmButtonColor: '#EF4444', cancelButtonColor: '#6B7280'
+            }).then(r => {
+                if (!r.isConfirmed) return;
+                $.ajax({ url: '/Invoice/Cancel/' + id, type: 'POST', headers: { 'RequestVerificationToken': getCsrfToken() } })
+                    .done(res => {
+                        if (res.success) { toastSuccess(res.message); setTimeout(() => location.reload(), 700); }
+                        else toastError(res.message);
+                    });
+            });
+        }
+
+        function deleteInv(id, num) {
+            confirmDelete({ title: `Delete ${num}?`, text: 'This invoice will be permanently deleted.' })
+            .then(r => {
+                if (!r.isConfirmed) return;
+                $.ajax({ url: '/Invoice/Delete/' + id, type: 'DELETE', headers: { 'RequestVerificationToken': getCsrfToken() } })
+                .done(res => {
+                    if (res.success) { toastSuccess(res.message); setTimeout(() => window.location.href = '/Invoice', 700); }
+                    else Swal.fire({ icon:'error', title:'Error', text: res.message, confirmButtonColor:'#2563EB' });
+                });
+            });
+        }
+    </script>
+}

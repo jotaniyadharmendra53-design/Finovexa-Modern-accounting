@@ -1,0 +1,505 @@
+﻿@model IEnumerable<InvoiceSaaS.Application.DTOs.Clients.ClientDto>
+@{
+    ViewData["Title"] = "Clients";
+    ViewBag.ActiveMenu = "clients";
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    var perms = (ViewBag.Permissions as HashSet<string>) ?? new HashSet<string>();
+    bool can(string c) => isSA || perms.Contains(c);
+    int currentPage = (int)(ViewBag.Page ?? 1);
+    int pageSize = (int)(ViewBag.PageSize ?? 20);
+    int totalCount = (int)(ViewBag.TotalCount ?? 0);
+    int totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var activeSearch = ViewBag.Search ?? "";
+}
+
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <h4 class="mb-1">Clients</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item active">Clients</li>
+            </ol>
+        </nav>
+    </div>
+    @if (can("clients.create"))
+    {
+        <button class="btn btn-primary" id="btnNewClient">
+            <i class="bi bi-person-plus me-1"></i> New Client
+        </button>
+    }
+</div>
+
+<!-- Search bar -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0" id="clientSearch"
+                           placeholder="Search name, email or phone…" value="@ViewBag.Search" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="1" selected="@(ViewBag.Status?.ToString() == "1")">Active</option>
+                    <option value="0" selected="@(ViewBag.Status?.ToString() == "0")">Inactive</option>
+                </select>
+            </div>
+            <div class="col text-end text-muted fs-13">
+                <span id="rowCount">@Model.Count()</span> clients
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Clients Table -->
+<div id="clientsListCard" class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Client</th>
+                    <th>Phone</th>
+                    <th>Invoices</th>
+                    <th>Status</th>
+                    <th>Added</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="clientsBody">
+                @foreach (var c in Model)
+                {
+                    var init = c.Name.Contains(' ')
+                    ? $"{c.Name.Split(' ')[0][0]}{c.Name.Split(' ')[^1][0]}".ToUpper()
+                    : c.Name.Length > 0 ? c.Name[0].ToString().ToUpper() : "C";
+                    <tr id="cRow_@c.Id"
+                        data-name="@c.Name.ToLower()" data-email="@(c.Email?.ToLower() ?? "")"
+                        data-phone="@(c.Phone?.ToLower() ?? "")" data-active="@(c.IsActive ? 1 : 0)">
+                        <td>
+                            <div class="d-flex align-items-center gap-3">
+                                <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-dark));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.8rem;flex-shrink:0;">
+                                    @init
+                                </div>
+                                <div>
+                                    <div class="fw-600 fs-13">@c.Name</div>
+                                    <div class="text-muted fs-12">@(c.Email ?? "—")</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="text-muted fs-13">@(c.Phone ?? "—")</td>
+                        <td>
+                            <span class="badge bg-light text-dark" style="font-weight:600;">@c.InvoiceCount</span>
+                        </td>
+                        <td>
+                            <span class="status-badge @(c.IsActive ? "paid" : "cancelled")">
+                                <span style="width:6px;height:6px;border-radius:50%;background:@(c.IsActive ? "#10B981" : "#6B7280");display:inline-block;margin-right:4px;"></span>
+                                @(c.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </td>
+                        <td class="text-muted fs-13">@c.CreatedAt.ToString("dd MMM yyyy")</td>
+                        <td class="text-end">
+                            <div class="d-flex justify-content-end gap-1">
+                                @if (can("invoices.create"))
+                                {
+                                    <a class="btn btn-outline-info"
+                                       href="/Invoice/Create?clientId=@c.Id"
+                                       data-bs-toggle="tooltip" title="New Invoice">
+                                        <i class="bi bi-receipt-cutoff"></i>
+                                    </a>
+                                }
+                                @if (can("clients.edit"))
+                                {
+                                    <button class="btn btn-outline-primary"
+                                            onclick="editClient('@c.Id')"
+                                            data-bs-toggle="tooltip" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                }
+                                @if (can("clients.delete"))
+                                {
+                                    <button class="btn btn-outline-danger"
+                                            onclick="deleteClient('@c.Id','@c.Name',@c.InvoiceCount)"
+                                            data-bs-toggle="tooltip" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @* Pagination *@
+    @if (totalPages > 0)
+    {
+        <div class="card-footer bg-transparent border-top d-flex align-items-center justify-content-between px-3 py-2">
+            <span class="text-muted small">
+                Showing @((currentPage - 1) * pageSize + 1)–@(Math.Min(currentPage * pageSize, totalCount)) of @totalCount clients
+            </span>
+            <nav>
+                <ul class="pagination pagination-sm mb-0 gap-1">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage - 1, activeSearch, pageSize, "")">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    @{
+                        int start = Math.Max(1, currentPage - 2);
+                        int end   = Math.Min(totalPages, start + 4);
+                        start     = Math.Max(1, end - 4);
+                    }
+                    @if (start > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(1, activeSearch, pageSize, "")">1</a>
+                        </li>
+                        @if (start > 2)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                    }
+                    @for (int pg = start; pg <= end; pg++)
+                    {
+                        <li class="page-item @(pg == currentPage ? "active" : "")">
+                            <a class="page-link rounded" href="@BuildUrl(pg, activeSearch, pageSize, ViewBag.Status?.ToString())">@pg</a>
+                        </li>
+                    }
+                    @if (end < totalPages)
+                    {
+                        @if (end < totalPages - 1)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(totalPages, activeSearch, pageSize, "")">@totalPages</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage + 1, activeSearch, pageSize, "")">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Per page:</span>
+                <select class="form-select form-select-sm" style="width:70px" id="pageSizeSelect">
+                    @foreach (var ps in new[] { 10, 20, 50, 100 })
+                    {
+                        if (ps == pageSize)
+                        {
+                            <option value="@ps" selected="selected">@ps</option>
+                        }
+                        else
+                        {
+                            <option value="@ps">@ps</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+    }
+
+@functions {
+    string BuildUrl(int page, string search, int pageSize, string status)
+    {
+        var q = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrEmpty(search)) q.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrEmpty(status)) q.Add($"status={status}");
+        q.Add($"page={page}");
+        q.Add($"pageSize={pageSize}");
+        return "/Client?" + string.Join("&", q);
+    }
+}
+
+    @if (!Model.Any())
+    {
+        <div class="empty-state py-5  text-center d-flex flex-column align-items-center">
+            <div class="empty-state-icon"><i class="bi bi-people"></i></div>
+            <h6>No clients yet</h6>
+            <p class="text-muted fs-13">Add your first client to start sending invoices.</p>
+            @if (can("clients.create"))
+            {
+                <button class="btn btn-primary btn-sm" id="btnNewClientEmpty">
+                    <i class="bi bi-plus-lg me-1"></i>Add Client
+                </button>
+            }
+        </div>
+    }
+</div>
+
+<!-- Client Modal -->
+<div class="modal fade" id="clientModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus me-2 text-primary"></i>
+                    <span id="clientModalTitle">New Client</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" id="clientModalBody">
+                <div class="text-center p-5"><div class="spinner-border text-primary"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const clientModal = new bootstrap.Modal(document.getElementById('clientModal'));
+
+        $('#btnNewClient, #btnNewClientEmpty').on('click', function () {
+            $('#clientModalTitle').text('New Client');
+            loadClientForm('/Client/Create');
+        });
+
+        function editClient(id) {
+            $('#clientModalTitle').text('Edit Client');
+            loadClientForm('/Client/Edit/' + id);
+        }
+
+        // function loadClientForm(url) {
+        //     $('#clientModalBody').html('<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>');
+        //     clientModal.show();
+        //     $.get(url).done(html =>  
+                
+        //         $('#clientModalBody').html(html))
+        //         loadCountryCodes()
+       
+        //               .fail(() => $('#clientModalBody').html('<p class="text-danger p-4">Failed to load.</p>'));
+        // }
+
+        function loadClientForm(url) {
+            $('#clientModalBody').html('<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>');
+            clientModal.show();
+
+            $.get(url)
+                .done(function (html) {
+                    $('#clientModalBody').html(html);
+
+                    // ✅ NOW dropdown exists → call here
+                    loadCountryCodes();
+                })
+                .fail(function () {
+                    $('#clientModalBody').html('<p class="text-danger p-4">Failed to load.</p>');
+                });
+        }
+
+        //Cuntrry code
+
+        function loadCountryCodes() {
+            const ddl = document.getElementById("countryCode");
+            const phoneInput = document.getElementById("clientPhone");
+
+            if (!ddl) return; // ✅ prevent crash
+
+            ddl.innerHTML = ""; // clear old
+
+            countryPhoneData.forEach(c => {
+                const option = document.createElement("option");
+                option.value = c.dial;
+                option.text = `${c.name} (${c.dial})`;
+                ddl.appendChild(option);
+            });
+
+            // Default India
+            ddl.value = "+91";
+
+     const fullPhone = phoneInput?.dataset?.fullPhone || "";
+        if (fullPhone) {
+            // Sort longest dial codes first to avoid "+1" matching before "+91"
+            const sorted = [...countryPhoneData].sort((a, b) => b.dial.length - a.dial.length);
+            const match = sorted.find(c => fullPhone.startsWith(c.dial));
+            if (match) {
+                ddl.value = match.dial;
+                phoneInput.value = fullPhone.slice(match.dial.length);
+            } else {
+                // No dial code found — show raw value
+                phoneInput.value = fullPhone;
+            }
+        }
+
+    }
+
+    
+
+        function validatePhone() {
+            const dial = document.getElementById("countryCode").value;
+            const phone = document.getElementById("clientPhone").value.trim();
+
+            const country = countryPhoneData.find(c => c.dial === dial);
+
+            if (!country) return true;
+
+            // Length validation
+            if (phone.length < country.min || phone.length > country.max) {
+                toastError(`Phone must be ${country.min}-${country.max} digits for ${country.name}`);
+                return false;
+            }
+
+            // Regex validation
+            if (!country.regex.test(phone)) {
+                toastError(`Invalid phone format for ${country.name}`);
+                return false;
+            }
+
+            return true;
+        }
+
+
+         //Cuntrry code
+
+        function saveClient() {
+            const id   = $('#clientForm').data('id') || null;
+            const isEdit = !!id;
+            const data = {
+                name:       $('#clientName').val().trim(),
+                email:      $('#clientEmail').val().trim(),
+                // phone:      $('#clientPhone').val().trim(),
+                phone: $('#countryCode').val() + $('#clientPhone').val().trim(),
+                address:    $('#address').val().trim(),
+                city:       $('#city').val().trim(),
+                state:      $('#state').val().trim(),
+                country:    $('#country').val().trim(),
+                postalCode: $('#postalCode').val().trim(),
+                taxNumber:  $('#taxNumber').val().trim(),
+                notes:      $('#notes').val().trim(),
+                currencyCode: $('#clientCurrency').val(),
+                isActive:   $('#isActive').is(':checked')
+            };
+            if (isEdit) data.id = id;
+
+            if (!data.name) 
+            { 
+                toastError('Client name is required.');
+                $('#clientName').focus(); 
+                return; 
+            }
+            if(!data.email)
+            {
+                toastError('Client Email is required.');
+                $('#clientEmail').focus();
+                return;
+            }
+            if(!data.taxNumber)
+            {
+                toastError('Client Tax Number  is required.');
+                $('#taxNumber').focus();
+                return;
+            }
+
+            if (!validatePhone()) {
+            $('#clientPhone').focus();
+            return;
+            }
+
+            const $btn = $('#saveClientBtn');
+            ajaxPost(isEdit ? '/Client/Edit' : '/Client/Create', data, $btn)
+                .done(res => {
+                    if (res.success) { clientModal.hide(); toastSuccess(res.message); setTimeout(() => location.reload(), 700); }
+                    else showFormErrors(res.errors?.length ? res.errors : [res.message]);
+                })
+                .fail(() => toastError('Server error.'));
+        }
+
+        function deleteClient(id, name, invoiceCount) {
+            if (invoiceCount > 0) {
+                Swal.fire({ icon:'warning', title:'Cannot Delete', confirmButtonColor:'#2563EB',
+                    text: `"${name}" has ${invoiceCount} invoice(s). Delete invoices first, or deactivate the client instead.` });
+                return;
+            }
+            confirmDelete({ title: 'Delete "' + name + '"?', text: 'This client will be permanently deleted.' })
+                .then(r => {
+                    if (!r.isConfirmed) return;
+                    $.ajax({ url: '/Client/Delete/' + id, type: 'DELETE', headers: { 'RequestVerificationToken': getCsrfToken() } })
+                        .done(res => {
+                            if (res.success) { $('#cRow_' + id).fadeOut(300, function(){ $(this).remove(); }); toastSuccess(res.message); }
+                            else Swal.fire({ icon:'error', title:'Error', text: res.message, confirmButtonColor:'#2563EB' });
+                        });
+                });
+        }
+
+        // function initClientHandlers() {
+        //     $('#clientSearch, #statusFilter').off('input change').on('input change', function () {
+        //         const s = $('#clientSearch').val().toLowerCase();
+        //         const st = $('#statusFilter').val();
+        //         let n = 0;
+        //         $('#clientsBody tr').each(function () {
+        //             const ok = (!s || $(this).data('name').includes(s) || ($(this).data('email')||'').includes(s) || ($(this).data('phone')||'').includes(s))
+        //                     && (!st || String($(this).data('active')) === st);
+        //             $(this).toggle(ok); if (ok) n++;
+        //         });
+        //         $('#rowCount').text(n);
+        //     });
+        // }
+
+        function initClientHandlers() {
+            // Debounced search → server reload
+            let searchTimer;
+            $('#clientSearch').off('input').on('input', function () {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () {
+                    triggerServerFilter();
+                }, 350); // wait 350ms after user stops typing
+            });
+
+            // Status dropdown → server reload immediately
+            $('#statusFilter').off('change').on('change', function () {
+                triggerServerFilter();
+            });
+        }
+
+        function triggerServerFilter() {
+            var s  = encodeURIComponent($('#clientSearch').val() || '');
+            var st = encodeURIComponent($('#statusFilter').val() || '');
+            var ps = $('#pageSizeSelect').val() || 20;
+            var url = '/Client?page=1&pageSize=' + ps
+                    + (s  ? '&search=' + s   : '')
+                    + (st ? '&status=' + st  : '');
+            loadClientsFromUrl(url);
+        }
+
+        // AJAX pagination: load clients card fragment and replace without full reload
+        function loadClientsFromUrl(url) {
+            $.get(url).done(function (html) {
+                var tmp = $('<div>').append($.parseHTML(html));
+                var newCard = tmp.find('#clientsListCard');
+                if (newCard.length) {
+                    $('#clientsListCard').replaceWith(newCard);
+                    setupClientPaginationHandlers();
+                    initClientHandlers();
+                } else {
+                    window.location.href = url; // fallback
+                }
+            }).fail(function () { toastError('Failed to load clients.'); });
+        }
+
+        function setupClientPaginationHandlers() {
+            // page-size selector — load first page with new size via AJAX
+            $('#pageSizeSelect').off('change').on('change', function () {
+                var ps = $(this).val();
+                var s = encodeURIComponent($('#clientSearch').val() || '');
+                var st = encodeURIComponent($('#statusFilter').val() || '');
+                var url = '/Client?page=1&pageSize=' + ps + (s ? '&search=' + s : '') + (st ? '&status=' + st : '');
+                loadClientsFromUrl(url);
+            });
+
+            // pagination links — load via AJAX
+            $(document).off('click', '#clientsListCard .pagination a').on('click', '#clientsListCard .pagination a', function (e) {
+                e.preventDefault();
+                var href = $(this).attr('href');
+                if (href) loadClientsFromUrl(href);
+            });
+        }
+
+        // initialize handlers on page load
+        setupClientPaginationHandlers();
+        initClientHandlers();
+    </script>
+}

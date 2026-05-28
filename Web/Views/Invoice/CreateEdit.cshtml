@@ -1,0 +1,840 @@
+﻿@using InvoiceSaaS.Domain.Enums
+@{
+    bool isEdit   = ViewBag.InvoiceId != null;
+    var  invId    = ViewBag.InvoiceId?.ToString() ?? "";
+    var  existing = ViewBag.ExistingInvoice as InvoiceSaaS.Application.DTOs.Invoices.InvoiceDto;
+    var  clients  = (ViewBag.Clients as IEnumerable<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>)
+                    ?? Enumerable.Empty<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>();
+    var preselected = ViewBag.PreselectedClientId as string ?? "";
+
+    var products = (ViewBag.Products as IEnumerable<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>)
+               ?? Enumerable.Empty<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>();
+
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    var perms = (ViewBag.Permissions as HashSet<string>) ?? new HashSet<string>();
+    bool can(string c) => isSA || perms.Contains(c);
+
+    // Seed items for edit mode
+    var seedItems = existing?.Items ?? new List<InvoiceSaaS.Application.DTOs.Invoices.InvoiceItemDto>();
+}
+
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <h4 class="mb-1">@(isEdit ? $"Edit {existing?.InvoiceNumber}" : "New Invoice")</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="/Invoice">Invoices</a></li>
+                <li class="breadcrumb-item active">@(isEdit ? "Edit" : "Create")</li>
+            </ol>
+        </nav>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/Invoice@(isEdit ? "/Detail/" + invId : "")" class="btn btn-outline-secondary">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+        </a>
+        @if (can("invoices.send"))
+        {
+            <button class="btn btn-outline-success" id="btnSaveSend">
+                <i class="bi bi-send me-1"></i>Save &amp; Send
+            </button>
+        }
+        <button class="btn btn-primary" id="btnSaveDraft">
+            <i class="bi bi-check-lg me-1"></i>Save as Draft
+        </button>
+    </div>
+</div>
+
+<div class="row g-4">
+
+    <!-- ── Left Column: Header + Line Items ─────────────────── -->
+    <div class="col-xl-8">
+
+        <!-- Invoice Header Card -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header">
+                <span class="card-title">Invoice Details</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Client -->
+                    <div class="col-md-12">
+                        <label class="form-label">
+                            Bill To (Client) <span class="text-danger">*</span>
+                        </label>
+                        <div class="d-flex gap-2">
+                            <select class="form-select" id="clientId" required>
+                                <option value="">— Select client —</option>
+                                @* @foreach (var c in clients)
+                                {
+                                    var sel = (c.Value == (existing?.ClientId.ToString() ?? preselected)) ? "selected" : "";
+                                    <option value="@c.Value" @sel>@c.Text</option>
+                                } *@
+                                   @foreach (var c in clients)
+                                   {
+                                         var isSelected = c.Value == (existing?.ClientId.ToString() ?? preselected);
+
+                                             <option value="@c.Value" selected="@(isSelected ? "selected" : null)">
+                                                    @c.Text
+                                             </option>
+                                   }
+                            </select>
+                            @if (can("clients.create"))
+                            {
+                                <button type="button" class="btn btn-outline-primary flex-shrink-0"
+                                        data-bs-toggle="tooltip" title="Add new client"
+                                        onclick="openQuickClient()">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            }
+                        </div>
+<div class="row g-3 mt-1">
+    <div class="col-md-4">
+        <label class="form-label">
+            Currency
+            <span class="ms-1 text-muted" style="font-size:.75rem;"
+                  data-bs-toggle="tooltip"
+                  title="Auto-filled from client settings. You can override if needed.">
+                <i class="bi bi-info-circle"></i>
+            </span>
+        </label>
+        <select class="form-select" id="invoiceCurrency">
+            <option value="INR">₹ INR</option>
+            <option value="USD">$ USD</option>
+            <option value="EUR">€ EUR</option>
+            <option value="GBP">£ GBP</option>
+            <option value="AUD">A$ AUD</option>
+            <option value="CAD">C$ CAD</option>
+            <option value="SGD">S$ SGD</option>
+            <option value="AED">AED</option>
+            <option value="JPY">¥ JPY</option>
+            <option value="CNY">¥ CNY</option>
+        </select>
+    </div>
+    <div class="col-md-4" id="exchangeRateSection">
+        <label class="form-label">
+            Exchange Rate
+            <span class="ms-1 text-muted" style="font-size:.75rem;"
+                  data-bs-toggle="tooltip"
+                  title="How many INR = 1 unit of invoice currency. E.g. 1 USD = 83.50 INR → enter 83.50">
+                <i class="bi bi-info-circle"></i>
+            </span>
+        </label>
+        <div class="input-group">
+            <span class="input-group-text bg-light fs-12" id="baseCurrencyLabel">INR</span>
+            <input type="number" class="form-control" id="exchangeRate"
+                   value="1" min="0.000001" step="0.01" placeholder="1.00"/>
+            <span class="input-group-text bg-light fs-12" id="invoiceCurrencyLabel">INR</span>
+        </div>
+        <div class="form-text" id="exchangeRateHint">Same currency — no conversion needed.</div>
+    </div>
+    <div class="col-md-4" id="convertedAmountSection" style="display:none;height:42px;margin-top:42px;">
+        <div class="p-2 rounded-3 h-100 d-flex flex-column justify-content-center"
+             style="background:#F0FDF4; border:1px solid #A7F3D0;">
+            <div class="fs-12 text-muted">Converted to INR</div>
+            <div class="fw-700 fs-5"id="convertedAmountDisplay">₹0.00</div>
+        </div>
+    </div>
+
+</div>
+
+                    </div>
+
+                    <!-- Issue Date + Due Date -->
+                    <div class="col-md-6">
+                        <label class="form-label">Issue Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="issueDate"
+                               value="@((existing?.IssueDate ?? DateTime.Today).ToString("yyyy-MM-dd"))"/>
+                               <!-- Issue Date -->
+                              @* <input type="text" class="form-control date-picker" id="issueDate"
+                              value="@((existing?.IssueDate ?? DateTime.Today).ToString("dd/MM/yyyy"))"/> *@
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Due Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="dueDate"
+                               value="@((existing?.DueDate ?? DateTime.Today.AddDays(30)).ToString("yyyy-MM-dd"))"/>
+                               @* <input type="text" class="form-control date-picker" id="dueDate"
+                                value="@((existing?.DueDate ?? DateTime.Today.AddDays(30)).ToString("dd/MM/yyyy"))"/> *@
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Line Items Card -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span class="card-title">Line Items</span>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddItem">
+                    <i class="bi bi-plus-lg me-1"></i>Add Item
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0" id="itemsTable">
+                        <thead>
+                            <tr style="background:#F9FAFB;">
+                                <th style="width:44%;padding:.65rem 1rem;">Description</th>
+                                <th style="width:14%;padding:.65rem .5rem;">Qty</th>
+                                <th style="width:18%;padding:.65rem .5rem;">Unit Price</th>
+                                <th style="width:16%;padding:.65rem .5rem;">Amount</th>
+                                <th style="width:8%;padding:.65rem .5rem;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsBody">
+                            <!-- rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="emptyItems" class="text-center py-4 text-muted fs-13 border-top" style="display:none;">
+                    <i class="bi bi-list-ul me-1"></i>No items yet — click "Add Item" to start.
+                </div>
+            </div>
+        </div>
+
+        @if ((bool)(ViewBag.RequiresRemark ?? false))
+{
+    <div class="card border-0 shadow-sm mb-4"
+         style="border-left: 4px solid #F59E0B !important;">
+        <div class="card-body">
+            <label class="form-label fw-700">
+                <i class="bi bi-pencil me-1 text-warning"></i>
+                Edit Remark <span class="text-danger">*</span>
+            </label>
+            <textarea class="form-control" id="editRemark" rows="2"
+                      maxlength="1000"
+                      placeholder="Why are you editing this sent invoice? (required)"></textarea>
+            <div class="form-text">
+                Saved to audit trail and visible on the invoice detail page.
+            </div>
+        </div>
+    </div>
+}
+
+        <!-- Notes + Terms Card -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" rows="3"
+                                  maxlength="2000"
+                                  placeholder="Payment instructions, thank you note…">@existing?.Notes</textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Terms &amp; Conditions</label>
+                        <textarea class="form-control" id="terms" rows="3"
+                                  maxlength="2000"
+                                  placeholder="e.g. Payment due within 30 days.">@existing?.Terms</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── Right Column: Totals + Quick Actions ──────────────── -->
+    <div class="col-xl-4">
+
+        <!-- Totals Card -->
+        <div class="card border-0 shadow-sm mb-4 sticky-top" style="top:80px;">
+            <div class="card-header"><span class="card-title">Summary</span></div>
+            <div class="card-body">
+                <!-- Tax Rate -->
+                <div class="mb-3">
+                    <label class="form-label">Tax Rate (%)</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control decimal-input" id="taxRate"
+                               value="@(existing?.TaxRate ?? 0)" min="0" max="100" step="0.01"
+                               placeholder="0"/>
+                        <span class="input-group-text">%</span>
+                    </div>
+                </div>
+
+                <!-- Discount -->
+                <div class="mb-3">
+                    <label class="form-label">Discount</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control decimal-input" id="discount"
+                               value="@(existing?.Discount ?? 0)" min="0" step="0.01"
+                               placeholder="0.00"/>
+                    </div>
+                </div>
+
+                <!-- Totals Display -->
+                <div class="invoice-totals-section">
+                    <div class="invoice-total-row">
+                        <span>Subtotal</span>
+                        <span id="displaySubtotal">0.00</span>
+                    </div>
+                    <div class="invoice-total-row" id="taxRow">
+                        <span>Tax (<span id="taxPct">0</span>%)</span>
+                        <span id="displayTax">0.00</span>
+                    </div>
+                    <div class="invoice-total-row" id="discountRow" style="display:none;">
+                        <span>Discount</span>
+                        <span id="displayDiscount" class="text-success">-0.00</span>
+                    </div>
+                    <div class="invoice-total-row grand-total">
+                        <span>Total</span>
+                        <span id="displayTotal" style="color:var(--primary);">0.00</span>
+                    </div>
+                </div>
+
+                <!-- Save Buttons -->
+                <div class="d-grid gap-2 mt-4">
+                    <button class="btn btn-primary" id="btnSaveDraft2">
+                        <i class="bi bi-check-lg me-2"></i>Save as Draft
+                    </button>
+                    @if (can("invoices.send"))
+                    {
+                        <button class="btn btn-success" id="btnSaveSend2">
+                            <i class="bi bi-send me-2"></i>Save &amp; Send to Client
+                        </button>
+                    }
+                </div>
+
+                @if (isEdit && existing != null)
+                {
+                    <div class="mt-3 pt-3 border-top">
+                        <div class="text-muted fs-12 mb-1">Invoice Number</div>
+                        <div class="fw-700" style="color:var(--primary);">@existing.InvoiceNumber</div>
+                        <div class="text-muted fs-12 mt-2">Status</div>
+                        <span class="status-badge @(existing.StatusName switch {
+                            "Draft"         => "draft",
+                            "Sent"          => "sent",
+                            "Paid"          => "paid",
+                            "Overdue"       => "overdue",
+                            "Cancelled"     => "cancelled",
+                            "PartiallyPaid" => "partial",
+                            _               => "draft"
+                        })">@existing.StatusName</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Quick Add Client Modal -->
+<div class="modal fade" id="quickClientModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-plus me-2 text-primary"></i>Quick Add Client</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" id="quickClientBody">
+                <div class="text-center p-5"><div class="spinner-border text-primary"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+
+@*     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    // ── Date Pickers (dd/MM/yyyy) ─────────────────────────────
+flatpickr('.date-picker', {
+    dateFormat: 'd/m/Y',       // display format
+    allowInput: true
+}); *@
+
+<script>
+    const productsList = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+    (products ?? []).Select(p => new { value = p.Value, text = p.Text })
+));
+
+// ════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════
+let items = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(seedItems.Select(i => new {
+    id          = i.Id?.ToString() ?? "",
+     productId   = i.ProductId?.ToString() ?? "", 
+    description = i.Description,
+    quantity    = i.Quantity,
+    unitPrice   = i.UnitPrice
+})));
+if (!items.length) items = [];
+
+const isEdit  = @(isEdit ? "true" : "false");
+const invId   = '@invId';
+
+
+$(document).on('change', '.item-product', function () {
+    const idx = $(this).closest('tr').data('idx');
+    const val = $(this).val();
+
+    items[idx].productId = val;
+
+    const prod = productsList.find(p => p.value == val);
+    if (!prod) return;
+
+    // extract price (format: "name (100)")
+    const match = prod.text.match(/\(([^)]+)\)/);
+    const price = match ? parseFloat(match[1]) || 0 : 0;
+
+    items[idx].description = prod.text.split('(')[0].trim();
+    items[idx].unitPrice = price;
+
+    const row = $(this).closest('tr');
+    row.find('.item-desc').val(items[idx].description);
+    row.find('.item-price').val(items[idx].unitPrice);
+
+    const amt = (items[idx].quantity * items[idx].unitPrice).toFixed(2);
+    row.find('.item-amount').text(amt);
+
+    calcTotals();
+});
+
+
+// ════════════════════════════════════════════════════════════
+//  RENDER ITEMS TABLE
+// ════════════════════════════════════════════════════════════
+function renderItems() {
+    const $body = $('#itemsBody');
+    $body.empty();
+
+    if (!items.length) {
+        $('#emptyItems').show();
+        calcTotals();
+        return;
+    }
+    $('#emptyItems').hide();
+
+    items.forEach((item, idx) => {
+        const amt = ((+item.quantity || 0) * (+item.unitPrice || 0)).toFixed(2);
+        $body.append(`
+        <tr class="invoice-item-row" data-idx="${idx}">
+           <td style="padding:.5rem 1rem;">
+    <input type="text" class="form-control form-control-sm item-desc"
+           value="${escHtml(item.description)}"
+           placeholder="Description of service or product"
+           maxlength="500"/>
+
+    ${productsList.length ? `
+        <select class="form-select form-select-sm mt-1 item-product">
+            <option value="">— product —</option>
+            ${productsList.map(p => `
+                <option value="${p.value}" ${p.value==item.productId?'selected':''}>
+                    ${p.text}
+                </option>
+            `).join('')}
+        </select>
+    ` : ''}
+</td>
+            <td style="padding:.5rem .5rem;">
+                <input type="number" class="form-control form-control-sm item-qty text-end"
+                       value="${item.quantity}" min="0.01" step="0.01" style="min-width:70px;"/>
+            </td>
+            <td style="padding:.5rem .5rem;">
+                <input type="number" class="form-control form-control-sm item-price text-end"
+                       value="${item.unitPrice}" min="0" step="0.01" style="min-width:90px;"/>
+            </td>
+            <td style="padding:.5rem .5rem;">
+                <div class="fw-600 text-end item-amount" style="color:var(--primary);padding-right:.25rem;">${amt}</div>
+            </td>
+            <td style="padding:.5rem .5rem;">
+                <button type="button" class="btn btn-icon btn-outline-danger border-0 btn-sm remove-item"
+                        data-idx="${idx}" data-bs-toggle="tooltip" title="Remove">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>`);
+    });
+
+    // Re-init tooltips
+    $('[data-bs-toggle="tooltip"]').tooltip('dispose').tooltip();
+    calcTotals();
+}
+
+// ── Escape HTML ───────────────────────────────────────────────
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ════════════════════════════════════════════════════════════
+//  TOTALS CALCULATION
+// ════════════════════════════════════════════════════════════
+function calcTotals() {
+    const subTotal = items.reduce((sum, it) => sum + (+it.quantity||0)*(+it.unitPrice||0), 0);
+    const taxRate  = +$('#taxRate').val() || 0;
+    const discount = +$('#discount').val() || 0;
+    const taxAmt   = subTotal * (taxRate / 100);
+    const total    = Math.max(0, subTotal + taxAmt - discount);
+
+    $('#displaySubtotal').text(subTotal.toFixed(2));
+    $('#displayTax').text(taxAmt.toFixed(2));
+    $('#taxPct').text(taxRate.toFixed(2).replace(/\.?0+$/, ''));
+    $('#displayDiscount').text('-' + discount.toFixed(2));
+    $('#displayTotal').text(total.toFixed(2));
+    $('#discountRow').toggle(discount > 0);
+    updateConvertedAmount(); 
+}
+
+// ════════════════════════════════════════════════════════════
+//  EVENT BINDINGS
+// ════════════════════════════════════════════════════════════
+// Add item
+$('#btnAddItem').on('click', function () {
+    items.push({ id:'', productId:'', description:'', quantity:1, unitPrice:0 });
+    renderItems();
+    // Focus last description input
+    setTimeout(() => $('#itemsBody tr:last .item-desc').focus(), 50);
+});
+
+// Live edit on item rows (delegated)
+$(document).on('input change', '.item-desc', function () {
+    const idx = $(this).closest('tr').data('idx');
+    items[idx].description = $(this).val();
+});
+$(document).on('input change', '.item-qty', function () {
+    const idx = $(this).closest('tr').data('idx');
+    items[idx].quantity = +$(this).val() || 0;
+    const amt = (items[idx].quantity * (+items[idx].unitPrice||0)).toFixed(2);
+    $(this).closest('tr').find('.item-amount').text(amt);
+    calcTotals();
+});
+$(document).on('input change', '.item-price', function () {
+    const idx = $(this).closest('tr').data('idx');
+    items[idx].unitPrice = +$(this).val() || 0;
+    const amt = ((+items[idx].quantity||0) * items[idx].unitPrice).toFixed(2);
+    $(this).closest('tr').find('.item-amount').text(amt);
+    calcTotals();
+});
+$(document).on('click', '.remove-item', function (e) {
+    e.stopPropagation();
+    const idx = +$(this).data('idx');
+    items.splice(idx, 1);
+    renderItems();
+});
+
+//Currency
+// ── Currency symbols lookup ───────────────────────────────────
+const currencySymbols = {
+    INR:'₹', USD:'$', EUR:'€', GBP:'£', AUD:'A$',
+    CAD:'C$', SGD:'S$', AED:'AED', JPY:'¥', CNY:'¥'
+};
+const baseCurrency = '@(ViewBag.CompanyCurrency ?? "INR")'; // from ViewBag
+
+// ── Auto-fill currency when client changes ────────────────────
+// $('#clientId').on('change', function() {
+//     const clientId = $(this).val();
+//     if (!clientId) return;
+//     $.get('/Client/GetCurrency', { clientId: clientId })
+//      .done(function(res) {
+//          if (res.success && res.data && res.data.currency) {
+//              const cur = res.data.currency;
+//              $('#invoiceCurrency').val(cur);
+//              updateCurrencyUI(cur);
+//          }
+//      });
+// });
+
+$('#clientId').on('change', function () {
+    const clientId = $(this).val();
+    if (!clientId) return;
+
+    // Step 1: Get client currency
+    $.get('/Client/GetCurrency', { clientId: clientId })
+    .done(function (res) {
+
+        if (res.success && res.data && res.data.currency) {
+
+            const currency = res.data.currency;
+
+            // Set currency dropdown
+            $('#invoiceCurrency').val(currency);
+            updateCurrencyUI(currency);
+
+            // Step 2: If NOT base currency → call API
+            if (currency !== baseCurrency) {
+
+                $('#exchangeRate').val('Loading...');
+
+                $.get('/Invoice/GetExchangeRate', {
+                    from: currency,
+                    to: baseCurrency
+                })
+                .done(function (rateRes) {
+
+                    if (rateRes.success) {
+                        $('#exchangeRate').val(rateRes.rate);
+                    } else {
+                        $('#exchangeRate').val(1);
+                    }
+
+                    updateConvertedAmount();
+                })
+                .fail(function () {
+                    $('#exchangeRate').val(1);
+                });
+            }
+            else {
+                // Same currency
+                $('#exchangeRate').val(1);
+                updateConvertedAmount();
+            }
+        }
+    });
+});
+
+
+// ── Update UI when currency dropdown changes ──────────────────
+$('#invoiceCurrency').on('change', function() {
+    updateCurrencyUI($(this).val());
+});
+
+function updateCurrencyUI(cur) {
+    const sym    = currencySymbols[cur] || cur;
+    const isBase = cur === baseCurrency;
+
+    // Update labels
+    $('#invoiceCurrencyLabel').text(cur);
+    $('#baseCurrencyLabel').text(baseCurrency);
+    // $('#perLabel').text('per 1 ' + cur + ' =');
+
+    if (isBase) {
+        $('#exchangeRate').val('1');
+        $('#exchangeRateHint').text('Same currency — no conversion needed.');
+        $('#exchangeRateSection').css('opacity','0.5');
+        $('#convertedAmountSection').hide();
+    } else {
+        $('#exchangeRateHint').text(
+            'Enter how many ' + baseCurrency + ' = 1 ' + cur +
+            '. E.g. 1 USD = 83.50 INR → type 83.50'
+        );
+        $('#exchangeRateSection').css('opacity','1');
+        $('#convertedAmountSection').show();
+    }
+
+    calcTotals(); // ← calls the real calcTotals which now includes updateConvertedAmount
+}
+// ── Recalculate converted amount when rate changes ──────────
+$('#exchangeRate').on('input', function() {
+    updateConvertedAmount();
+});
+
+// Patch calcTotals to show converted amount
+// const _origCalcTotals = calcTotals; // keep reference
+// function calcTotals() {
+//     _origCalcTotals();  // call original
+//     updateConvertedAmount();
+// }
+
+// ── Update the "Converted to INR" green box ─────────────────
+// Called from inside calcTotals() (see patch below)
+function updateConvertedAmount() {
+    const total   = parseFloat($('#displayTotal').text().replace(/,/g,'')) || 0;
+    const rate    = parseFloat($('#exchangeRate').val()) || 1;
+    const cur     = $('#invoiceCurrency').val() || baseCurrency;
+    const baseSym = currencySymbols[baseCurrency] || baseCurrency;
+    const converted = (total * rate).toFixed(2);
+    const formatted = parseFloat(converted).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    $('#convertedAmountDisplay').text(baseSym + formatted);
+}
+
+function updateTotalSymbol(sym) {
+    // Update the ₹ symbol shown next to the total in the summary
+    // The totals section uses a currency symbol prefix — update it
+    const el = document.getElementById('currencySymbol');
+    if (el) el.textContent = sym;
+}
+
+// ── On edit: restore existing currency ──────────────────────
+@if (ViewBag.ExistingInvoice != null) {
+    <text>
+    $(function() {
+        const existingCur  = '@(ViewBag.ExistingInvoice?.CurrencyCode ?? "INR")';
+        const existingRate = @(ViewBag.ExistingInvoice?.ExchangeRate ?? 1m);
+        $('#invoiceCurrency').val(existingCur);
+        $('#exchangeRate').val(existingRate);
+        updateCurrencyUI(existingCur);
+    });
+    </text>
+}
+
+//
+
+
+$('#taxRate, #discount').on('input', calcTotals);
+
+// ════════════════════════════════════════════════════════════
+//  SAVE INVOICE
+// ════════════════════════════════════════════════════════════
+function saveInvoice(sendNow) {
+    // Validate
+    const clientId  = $('#clientId').val();
+    const issueDate = $('#issueDate').val();
+    const dueDate   = $('#dueDate').val();
+    
+
+    // At the very top of saveInvoice(), before existing validation:
+const requiresRemark = @(((bool)(ViewBag.RequiresRemark ?? false)) ? "true" : "false");
+
+// After the dueDate validation check, add:
+if (requiresRemark) {
+    const remark = $('#editRemark').val().trim();
+    if (!remark) {
+        toastError('A remark is required when editing a sent invoice.');
+        $('#editRemark').focus();
+        return;
+    }
+}
+
+
+
+
+
+    if (!clientId)  { toastError('Please select a client.'); $('#clientId').focus(); return; }
+    if (!issueDate) { toastError('Issue date is required.'); return; }
+    if (!dueDate)   { toastError('Due date is required.'); return; }
+    if (dueDate < issueDate) { toastError('Due date must be on or after the issue date.'); return; }
+//     function parseDate(str) { const [d, m, y] = str.split('/');
+//     return new Date(y, m - 1, d);
+//     }
+
+//     if (parseDate(dueDate) < parseDate(issueDate)) { toastError('Due date must be on or after the issue date.');
+//     return;
+// }
+//     if (!items.length) {
+//         Swal.fire({ icon:'warning', title:'No Items', text:'Add at least one line item.', confirmButtonColor:'#2563EB' });
+//         return;
+//     }
+
+
+
+    // ── Items required ────────────────────────────────────────
+if (!items.length) {
+    Swal.fire({
+        icon: 'warning',
+        title: 'No Items',
+        text: 'Add at least one line item.',
+        confirmButtonColor: '#2563EB'
+    });
+    return;
+}
+
+    const emptyDesc = items.some(i => !i.description.trim());
+    if (emptyDesc) { toastError('All line items must have a description.'); return; }
+    const badQty = items.some(i => +i.quantity <= 0);
+    if (badQty) { toastError('All item quantities must be greater than 0.'); return; }
+
+    const payload = {
+        isEdit,
+        id:        isEdit ? invId : null,
+        clientId,
+        issueDate,
+        dueDate,
+        taxRate:   +$('#taxRate').val() || 0,
+        discount:  +$('#discount').val() || 0,
+        notes:     $('#notes').val().trim(),
+        terms:     $('#terms').val().trim(),
+        sendNow:   sendNow,
+        currencyCode: $('#invoiceCurrency').val() || 'INR',
+        exchangeRate: parseFloat($('#exchangeRate').val()) || 1,
+        // Inside the payload object, add:
+editRemark: requiresRemark ? $('#editRemark').val().trim() : null,
+
+        items:     items.map((it, idx) => ({
+            id:          it.id || null,
+             productId: it.productId || null,
+            description: it.description.trim(),
+            quantity:    +it.quantity,
+            unitPrice:   +it.unitPrice,
+            sortOrder:   idx
+        }))
+    };
+
+    // Show loading
+    if (sendNow) {
+        Swal.fire({ title:'Saving & Sending…', didOpen:()=>Swal.showLoading(), allowOutsideClick:false });
+    } else {
+        const $btn = sendNow ? null : ($('#btnSaveDraft').prop('disabled',true), $('#btnSaveDraft'));
+    }
+
+    $.ajax({
+        url: '/Invoice/Save',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(payload),
+        headers: { 'RequestVerificationToken': getCsrfToken() }
+    })
+    .done(function (res) {
+        Swal.close();
+        if (res.success) {
+            const msg = sendNow ? 'Invoice saved and sent to client!' : (res.message || 'Invoice saved.');
+            Swal.fire({
+                icon: 'success', title: sendNow ? 'Sent!' : 'Saved!', text: msg,
+                timer: 1500, showConfirmButton: false
+            }).then(() => {
+                window.location.href = '/Invoice/Detail/' + res.data.id;
+            });
+        } else {
+            showFormErrors(res.errors?.length ? res.errors : [res.message]);
+            $('#btnSaveDraft, #btnSaveDraft2').prop('disabled', false);
+        }
+    })
+    .fail(function () {
+        Swal.close();
+        toastError('Server error. Please try again.');
+        $('#btnSaveDraft, #btnSaveDraft2').prop('disabled', false);
+    });
+}
+
+$('#btnSaveDraft,  #btnSaveDraft2').on('click', () => saveInvoice(false));
+$('#btnSaveSend,   #btnSaveSend2').on('click',  () => saveInvoice(true));
+
+// ════════════════════════════════════════════════════════════
+//  QUICK ADD CLIENT
+// ════════════════════════════════════════════════════════════
+const qcModal = new bootstrap.Modal(document.getElementById('quickClientModal'));
+
+function openQuickClient() {
+    $('#quickClientBody').html('<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>');
+    qcModal.show();
+    $.get('/Client/Create').done(html => $('#quickClientBody').html(html))
+                           .fail(() => $('#quickClientBody').html('<p class="text-danger p-3">Failed to load.</p>'));
+}
+
+// Override saveClient() to refresh dropdown after creation
+window._origSaveClient = window.saveClient;
+window.saveClient = function () {
+    const name = $('#clientName').val().trim();
+    if (!name) { toastError('Client name is required.'); return; }
+    const data = {
+        name, 
+        email:$('#clientEmail').val().trim(),
+        phone:$('#clientPhone').val().trim(),
+        address:$('#address').val().trim(), city:$('#city').val().trim(),
+        state:$('#state').val().trim(), country:$('#country').val().trim(),
+        postalCode:$('#postalCode').val().trim(), taxNumber:$('#taxNumber').val().trim(),
+        notes:$('#notes_client').val()?.trim() || '',
+        currencyCode: $('#clientCurrency').val() || 'INR',
+        isActive: true
+    };
+    ajaxPost('/Client/Create', data)
+        .done(res => {
+            if (res.success) {
+                qcModal.hide();
+                toastSuccess('Client created!');
+                // Add to select and pick it
+                const opt = new Option(res.data.name, res.data.id, true, true);
+                $('#clientId').append(opt).val(res.data.id);
+            } else {
+                showFormErrors(res.errors?.length ? res.errors : [res.message]);
+            }
+        })
+        .fail(() => toastError('Server error.'));
+};
+
+// ════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════
+$(function () {
+    renderItems();
+    $('[data-bs-toggle="tooltip"]').tooltip();
+});
+</script>
+}

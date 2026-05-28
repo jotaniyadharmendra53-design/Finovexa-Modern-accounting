@@ -1,0 +1,162 @@
+@{
+    Layout = "~/Views/Shared/_AuthLayout.cshtml";
+    ViewData["Title"] = "Sign In";
+    var returnUrl = ViewBag.ReturnUrl as string ?? "";
+    ViewBag.TopHint = "New to Finovexa?";
+    ViewBag.TopHintLink = "#";
+    ViewBag.TopHintText = "Contact your administrator";
+}
+
+<div class="glass-card glass-card--split">
+    <!-- Brand pane -->
+    <aside class="brand-pane">
+        <div>
+            <span class="brand-pane__eyebrow">Finovexa</span>
+            <h1 class="brand-pane__title">Modern accounting,<br/><em>simplified.</em></h1>
+            <p class="brand-pane__sub">From invoices to ledgers, P&amp;L to cash flow — run your books with clarity, speed, and the confidence of a finance team.</p>
+            <span class="brand-pane__by">an <strong>AllUpNext</strong> company</span>
+
+            <ul class="brand-pane__features list-unstyled">
+                <li class="brand-pane__feature"><i class="bi bi-lightning-charge-fill"></i><span>Real-time P&amp;L &amp; cash flow</span></li>
+                <li class="brand-pane__feature"><i class="bi bi-shield-check"></i><span>Bank-grade security &amp; audit trails</span></li>
+                <li class="brand-pane__feature"><i class="bi bi-graph-up-arrow"></i><span>Receivables &amp; payables, automated</span></li>
+            </ul>
+        </div>
+
+        <div class="brand-pane__stats">
+            <div>
+                <div class="brand-pane__stat-val">10K+</div>
+                <div class="brand-pane__stat-lbl">Invoices</div>
+            </div>
+            <div>
+                <div class="brand-pane__stat-val">99.9%</div>
+                <div class="brand-pane__stat-lbl">Uptime</div>
+            </div>
+            <div>
+                <div class="brand-pane__stat-val">2&times;</div>
+                <div class="brand-pane__stat-lbl">Faster Close</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Form pane -->
+    <section class="form-pane">
+        <span class="auth-eyebrow">Welcome back</span>
+        <h2 class="auth-heading">Sign in to Finovexa</h2>
+        <p class="auth-subtle">Pick up where you left off and stay on top of your books.</p>
+
+        <div class="error-alert" id="errorAlert">
+            <i class="bi bi-exclamation-circle"></i><span id="errorMessage"></span>
+        </div>
+
+        <form id="loginForm" novalidate>
+            @Html.AntiForgeryToken()
+            <input type="hidden" id="returnUrl" value="@returnUrl"/>
+
+            <div class="field">
+                <label for="email" class="field__label">Email</label>
+                <div class="field__control">
+                    <span class="field__icon"><i class="bi bi-envelope"></i></span>
+                    <input type="email" id="email" class="field__input" placeholder="you@company.com" autocomplete="email" required/>
+                </div>
+                <span class="field__error" id="emailError"></span>
+            </div>
+
+            <div class="field">
+                <label for="password" class="field__label">
+                    Password
+                    <a href="/Account/ForgotPassword" class="link-gold">Forgot password?</a>
+                </label>
+                <div class="field__control">
+                    <span class="field__icon"><i class="bi bi-lock"></i></span>
+                    <input type="password" id="password" class="field__input" placeholder="Enter your password" autocomplete="current-password" required/>
+                    <button type="button" class="field__trail" id="togglePassword" tabindex="-1" aria-label="Show password">
+                        <i class="bi bi-eye" id="toggleIcon"></i>
+                    </button>
+                </div>
+                <span class="field__error" id="passwordError"></span>
+            </div>
+
+            <div class="field-row">
+                <label class="check" for="rememberMe">
+                    <input type="checkbox" id="rememberMe"/>
+                    <span>Remember me for 30 days</span>
+                </label>
+            </div>
+
+            <button type="submit" class="btn-aurora" id="loginBtn">
+                <span id="btnText">Sign in</span>
+                <span id="btnSpinner" class="d-none">
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Signing in&hellip;
+                </span>
+            </button>
+        </form>
+    </section>
+</div>
+
+@section Scripts {
+<script>
+$(function(){
+    var $form=$('#loginForm'),$btn=$('#loginBtn'),$txt=$('#btnText'),$spin=$('#btnSpinner');
+
+    $('#togglePassword').on('click',function(){
+        var $p=$('#password'),$i=$('#toggleIcon');
+        var isText=$p.attr('type')==='text';
+        $p.attr('type',isText?'password':'text');
+        $i.toggleClass('bi-eye',isText).toggleClass('bi-eye-slash',!isText);
+    });
+
+    function showError(msg){$('#errorMessage').text(msg);$('#errorAlert').addClass('is-shown')}
+    function hideError(){$('#errorAlert').removeClass('is-shown')}
+    function setFieldError(id,msg){$('#'+id).closest('.field__control').css('border-color','rgba(248,113,113,.55)');$('#'+id+'Error').text(msg)}
+    function clearErrors(){
+        hideError();
+        $('#email,#password').each(function(){$(this).closest('.field__control').css('border-color','')});
+        $('#emailError,#passwordError').text('');
+    }
+    function resetBtn(){$btn.prop('disabled',false);$txt.removeClass('d-none');$spin.addClass('d-none')}
+
+    $form.on('submit',function(e){
+        e.preventDefault();clearErrors();
+        var email=$('#email').val().trim(),password=$('#password').val(),remember=$('#rememberMe').is(':checked');
+        var valid=true;
+        if(!email){setFieldError('email','Email is required.');valid=false}
+        else if(!/^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test(email)){setFieldError('email','Enter a valid email.');valid=false}
+        if(!password){setFieldError('password','Password is required.');valid=false}
+        if(!valid)return;
+
+        $btn.prop('disabled',true);$txt.addClass('d-none');$spin.removeClass('d-none');
+
+        $.ajax({
+            url:'/Account/Login'+($('#returnUrl').val()?'?returnUrl='+encodeURIComponent($('#returnUrl').val()):''),
+            type:'POST',contentType:'application/json',
+            data:JSON.stringify({email:email,password:password,rememberMe:remember}),
+            headers:{'RequestVerificationToken':$('input[name="__RequestVerificationToken"]').val()},
+            success:function(res){
+                if(res.success){
+                    Swal.fire({
+                        html:'<div style="padding:8px 0;"><div style="width:64px;height:64px;background:linear-gradient(135deg,#8B5CF6,#6366F1);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 24px rgba(139,92,246,.45);"><svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></div><h3 style="font-size:1.2rem;font-weight:800;margin:0 0 4px;font-family:Plus Jakarta Sans,Inter,sans-serif;">Welcome back!</h3><p style="opacity:.7;font-size:.88rem;margin:0;">Taking you to your dashboard&hellip;</p></div>',
+                        showConfirmButton:false,timer:1200,allowOutsideClick:false,
+                        customClass:{popup:'swal-aurora'}
+                    }).then(function(){window.location.href=res.redirectUrl||'/Dashboard'});
+                }else{
+                    resetBtn();
+                    (res.errors&&res.errors.length?res.errors:[res.message||'Login failed.']).forEach(showError);
+                    var $card=$('.glass-card');
+                    $card.removeClass('is-shaking');setTimeout(function(){$card.addClass('is-shaking')},10);
+                }
+            },
+            error:function(xhr){resetBtn();showError(xhr.responseJSON?.message||'Server error. Please try again.')}
+        });
+    });
+
+    $('#email,#password').on('input',function(){
+        $(this).closest('.field__control').css('border-color','');
+        $('#'+this.id+'Error').text('');
+        hideError();
+    });
+
+    $('#email').trigger('focus');
+});
+</script>
+}

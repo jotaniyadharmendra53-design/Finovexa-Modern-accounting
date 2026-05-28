@@ -1,0 +1,28 @@
+﻿@using InvoiceSaaS.Web.Models
+@* ============================================================
+   PAGINATION SNIPPET
+   Paste this at the BOTTOM of every list view table,
+   just before the closing </div> of the card.
+   
+   Works with any view that has ViewBag.Page, ViewBag.TotalPages,
+   ViewBag.TotalCount, ViewBag.PageSize set by the controller.
+   ============================================================ *@
+
+@* Add to top of view file:
+   @using InvoiceSaaS.Web.Models
+*@
+
+@{
+    var _paginPage = (int)(ViewBag.Page ?? 1);
+    var _paginTotalPages = (int)(ViewBag.TotalPages ?? 1);
+    var _paginTotalCount = (int)(ViewBag.TotalCount ?? 0);
+    var _paginPageSize = (int)(ViewBag.PageSize ?? 20);
+}
+
+@await Html.PartialAsync("_Pagination", new PaginationModel
+{
+    Page = _paginPage,
+    TotalPages = _paginTotalPages,
+    TotalCount = _paginTotalCount,
+    PageSize = _paginPageSize
+})

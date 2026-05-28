@@ -1,0 +1,159 @@
+﻿@{
+    bool isEdit = ViewData.Model is InvoiceSaaS.Application.DTOs.Clients.UpdateClientDto;
+    string? id = null; string? name = null; string? email = null; string? phone = null;
+    string? address = null; string? city = null; string? state = null;
+    string? country = null; string? postal = null; string? tax = null;
+    string? notes = null; bool active = true;
+    string currency = "INR";  // ← NEW
+
+    if (isEdit && ViewData.Model is InvoiceSaaS.Application.DTOs.Clients.UpdateClientDto e)
+    {
+        id = e.Id.ToString(); name = e.Name; email = e.Email; phone = e.Phone;
+        address = e.Address; city = e.City; state = e.State;
+        country = e.Country; postal = e.PostalCode; tax = e.TaxNumber;
+        notes = e.Notes; active = e.IsActive;
+        currency = e.CurrencyCode ?? "INR";  // ← NEW
+    }
+}
+
+
+@{
+    // Currency options: code → symbol + name
+    var currencies = new[]
+    {
+        ("INR","₹ INR — Indian Rupee"),
+        ("USD","$ USD — US Dollar"),
+        ("EUR","€ EUR — Euro"),
+        ("GBP","£ GBP — British Pound"),
+        ("AUD","A$ AUD — Australian Dollar"),
+        ("CAD","C$ CAD — Canadian Dollar"),
+        ("SGD","S$ SGD — Singapore Dollar"),
+        ("AED","AED — UAE Dirham"),
+        ("JPY","¥ JPY — Japanese Yen"),
+        ("CNY","¥ CNY — Chinese Yuan"),
+        ("CHF","CHF — Swiss Franc"),
+        ("NZD","NZ$ NZD — New Zealand Dollar"),
+        ("ZAR","R ZAR — South African Rand"),
+        ("BRL","R$ BRL — Brazilian Real"),
+        ("MXN","$ MXN — Mexican Peso"),
+    };
+}
+
+
+<form id="clientForm" data-id="@id">
+    @Html.AntiForgeryToken()
+    <div class="p-4">
+        <div class="row g-3">
+            <!-- Name -->
+            <div class="col-12">
+                <label class="form-label">Client / Company Name <span class="text-danger">*</span></label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-building text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0" id="clientName"
+                           value="@name" placeholder="Acme Corporation" maxlength="200" />
+                </div>
+            </div>
+            <!-- Email + Phone -->
+            <div class="col-md-6">
+                <label class="form-label">Email <span class="text-danger">*</span></label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+                    <input type="email" class="form-control border-start-0" id="clientEmail"
+                           value="@email" placeholder="billing@acme.com" maxlength="200" />
+                </div>
+            </div>
+            @* <div class="col-md-6">
+                <label class="form-label">Phone</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-telephone text-muted"></i></span>
+                    <input type="tel" class="form-control border-start-0" id="clientPhone"
+                           value="@phone" placeholder="+1 555 0100" maxlength="30" />
+                </div>
+            </div> *@
+            <div class="col-md-6">
+                <label class="form-label">Phone</label>
+                <div class="input-group">
+
+                    <!-- Country Dropdown -->
+                    <select id="countryCode" class="form-select" style="max-width:120px;">
+                    </select>
+
+                    <input type="tel" class="form-control" id="clientPhone"
+                           placeholder="Enter phone number" maxlength="15"
+                           data-full-phone="@phone" />
+                </div>
+            </div>
+             <!-- ── Currency (NEW) ─────────────────────────── -->
+            <div class="col-md-6">
+                <label class="form-label">
+                    Currency
+                    <span class="ms-1 text-muted" style="font-size:.75rem;"
+                          data-bs-toggle="tooltip"
+                          title="Invoices created for this client will use this currency by default.">
+                        <i class="bi bi-info-circle"></i>
+                    </span>
+                </label>
+                <select class="form-select" id="clientCurrency">
+                    @foreach (var (code, label) in currencies)
+                    {
+                        @* <option value="@code" @(code == currency ? "selected" : "")>@label</option> *@
+                        <option value="@code" selected="@(code == currency)">
+                            @label
+                        </option>
+                    }
+                </select>
+            </div>
+            <!-- ──────────────────────────────────────────── -->
+
+
+            <!-- Address -->
+            <div class="col-12">
+                <label class="form-label">Address</label>
+                <input type="text" class="form-control" id="address" value="@address"
+                       placeholder="123 Business Ave" maxlength="500" />
+            </div>
+            <!-- City + State -->
+            <div class="col-md-4">
+                <label class="form-label">City</label>
+                <input type="text" class="form-control" id="city" value="@city" maxlength="100" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">State / Province</label>
+                <input type="text" class="form-control" id="state" value="@state" maxlength="100" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Postal Code</label>
+                <input type="text" class="form-control" id="postalCode" value="@postal" maxlength="20" />
+            </div>
+            <!-- Country + Tax -->
+            <div class="col-md-6">
+                <label class="form-label">Country</label>
+                <input type="text" class="form-control" id="country" value="@country" maxlength="100" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Tax Number / VAT <span class="text-danger">*</span> </label>
+                <input type="text" class="form-control" id="taxNumber" value="@tax"
+                       placeholder="Tax Number / VAT " maxlength="100" />
+            </div>
+            <!-- Notes -->
+            <div class="col-12">
+                <label class="form-label">Internal Notes</label>
+                <textarea class="form-control" id="notes" rows="2" maxlength="1000"
+                          placeholder="Optional notes visible only to your team">@notes</textarea>
+            </div>
+            <!-- Active -->
+            <div class="col-12">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="isActive" @(active ? "checked" : "") />
+                    <label class="form-check-label fs-13" for="isActive">Active client</label>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer border-top">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary px-4" id="saveClientBtn" onclick="saveClient()">
+            <i class="bi bi-check-lg me-2"></i>@(isEdit ? "Save Changes" : "Create Client")
+        </button>
+    </div>
+</form>

@@ -1,0 +1,394 @@
+﻿@using InvoiceSaaS.Application.DTOs.FiscalYear
+@model IEnumerable<FiscalYearDto>
+@{
+    ViewData["Title"]  = "Fiscal Years";
+    ViewBag.ActiveMenu = "fiscalyear";
+    var perms = ViewBag.Permissions as HashSet<string> ?? new HashSet<string>();
+    bool isSA    = (bool)(ViewBag.IsSuperAdmin ?? false);
+    bool Can(string c) => isSA || perms.Contains(c);
+    bool canEdit = Can("company.edit");
+    var list     = Model.ToList();
+    var current  = list.FirstOrDefault(f => f.IsDefault && f.IsOpen);
+}
+
+@section Styles {
+<style>
+.fy-card { border-radius:12px;padding:20px 22px;border:1px solid var(--bs-border-color);transition:box-shadow .15s; }
+.fy-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.07); }
+.fy-card.is-current { border-color:#3B82F6;border-width:2px; }
+.fy-status-open   { background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0; }
+.fy-status-locked { background:#FFFBEB;color:#92400E;border:1px solid #FDE68A; }
+.fy-status-future { background:#F1F5F9;color:#475569;border:1px solid #CBD5E1; }
+.fy-badge { display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600; }
+.check-item { display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--bs-border-color); }
+.check-item:last-child { border-bottom:none; }
+.check-icon { width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0;margin-top:1px; }
+.check-ok   { background:#ECFDF5;color:#065F46; }
+.check-warn { background:#FFFBEB;color:#92400E; }
+.check-block{ background:#FEF2F2;color:#991B1B; }
+
+        .fy-info-banner {
+            background: var(--primary-light);
+            border-left: 4px solid var(--primary);
+            border-radius: 10px;
+            padding: 14px 16px;
+            color: var(--text-secondary);
+        }
+
+            .fy-info-banner .bi {
+                color: var(--primary);
+            }
+
+            .fy-info-banner strong {
+                color: var(--text-primary);
+            }
+
+</style>
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Fiscal Years</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item active">Fiscal Years</li>
+        </ol></nav>
+    </div>
+    @if(canEdit){
+    <button class="btn btn-primary" onclick="openNextYear()">
+        <i class="bi bi-plus-lg me-1"></i> Create Next Year
+    </button>
+    }
+</div>
+
+<!-- Info banner -->
+<div class="fy-info-banner mb-4 d-flex align-items-start gap-3">
+    <i class="bi bi-info-circle mt-1" style="font-size:1.1rem;flex-shrink:0;"></i>
+    <div style="font-size:.85rem;">
+        <strong>How fiscal years work:</strong>
+        Each fiscal year covers 12 months. The <strong>Open</strong> year accepts new transactions.
+        <strong>Locking</strong> a year makes it read-only — no invoices, expenses, or payments
+        can be created or edited in that period. You can still view all reports for locked years.
+    </div>
+</div>
+
+<!-- Fiscal year cards -->
+<div class="row g-3" id="fyList">
+@foreach(var fy in list){
+    var statusCls  = fy.Status == 0 ? "fy-status-open" : fy.Status == 1 ? "fy-status-locked" : "fy-status-future";
+    var statusIcon = fy.Status == 0 ? "bi-unlock" : fy.Status == 1 ? "bi-lock-fill" : "bi-clock";
+    var statusText = fy.StatusName;
+    var cardCls    = (fy.IsDefault && fy.IsOpen) ? "fy-card is-current" : "fy-card";
+<div class="col-12 col-md-6 col-xl-4">
+    <div class="@cardCls bg-white">
+
+        <!-- Header row -->
+        <div class="d-flex align-items-start justify-content-between mb-3">
+            <div>
+                <div class="fw-700 fs-5">@fy.Label</div>
+                @if(fy.IsDefault && fy.IsOpen){
+                <div style="font-size:.72rem;color:#3B82F6;font-weight:600;margin-top:2px;">
+                    <i class="bi bi-star-fill me-1"></i>Current active year
+                </div>
+                }
+            </div>
+            <span class="fy-badge @statusCls">
+                <i class="bi @statusIcon"></i> @statusText
+            </span>
+        </div>
+
+        <!-- Period -->
+        <div class="text-muted small mb-3">
+            <i class="bi bi-calendar-range me-1"></i>
+            @fy.StartDate.ToString("dd MMM yyyy") — @fy.EndDate.ToString("dd MMM yyyy")
+        </div>
+
+        <!-- Notes -->
+        @if(!string.IsNullOrEmpty(fy.Notes)){
+        <div class="small text-muted mb-3 p-2 rounded" style="background:#F8FAFC;">
+            <i class="bi bi-chat-left-text me-1"></i>@fy.Notes
+        </div>
+        }
+
+        <!-- Closed info -->
+        @if(fy.IsLocked && fy.ClosedAt.HasValue){
+        <div class="small text-muted mb-3">
+            <i class="bi bi-lock me-1 text-warning"></i>
+            Locked on @fy.ClosedAt.Value.ToString("dd MMM yyyy")
+        </div>
+        }
+
+        <!-- Actions -->
+        @if(canEdit){
+        <div class="d-flex gap-2 flex-wrap mt-3 pt-3 border-top">
+            @if(fy.IsOpen){
+            <button class="btn btn-sm btn-outline-danger"
+                    onclick="startClose('@fy.Id','@fy.Label')">
+                <i class="bi bi-lock me-1"></i>Close Year
+            </button>
+            }
+            @if(fy.IsFuture){
+            <button class="btn btn-sm btn-outline-success"
+                    onclick="startClose('@fy.Id','@fy.Label')">
+                <i class="bi bi-play-circle me-1"></i>Activate
+            </button>
+            }
+            <button class="btn btn-sm btn-outline-secondary"
+                    onclick="editNotes('@fy.Id','@Html.Raw(fy.Notes?.Replace("'","\'") ?? "")')">
+                <i class="bi bi-pencil me-1"></i>Notes
+            </button>
+            @if(fy.IsOpen || fy.IsLocked){
+            <a href="/Accounting/PnL" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-bar-chart-line me-1"></i>P&amp;L
+            </a>
+            }
+        </div>
+        }
+    </div>
+</div>
+}
+@if(!list.Any()){
+<div class="col-12">
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-calendar-x fs-2 d-block mb-3 opacity-25"></i>
+        <p>No fiscal years set up yet.</p>
+        @if(canEdit){
+        <button class="btn btn-primary mt-2" onclick="openNextYear()">
+            <i class="bi bi-plus-lg me-1"></i>Create First Fiscal Year
+        </button>
+        }
+    </div>
+</div>
+}
+</div>
+
+<!-- ── Close Year Modal ──────────────────────────────────────── -->
+<div class="modal fade" id="closeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">
+                    <i class="bi bi-lock text-warning me-2"></i>
+                    Close Fiscal Year
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Closing <strong id="closeFYLabel"></strong> will lock all transactions in
+                    this period. <span class="text-danger fw-600">This cannot be undone.</span>
+                </p>
+
+                <!-- Pre-close check results -->
+                <div id="checkLoading" class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                    Running pre-close checks…
+                </div>
+                <div id="checkResults" style="display:none">
+                    <div id="checkList" class="mb-3"></div>
+
+                    <!-- Options (shown when canClose = true) -->
+                    <div id="closeOptions" style="display:none">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="openNextCheck" checked>
+                            <label class="form-check-label small" for="openNextCheck">
+                                Automatically open next fiscal year after closing
+                            </label>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Notes (optional)</label>
+                            <textarea class="form-control form-control-sm" id="closeNotes"
+                                      rows="2" placeholder="e.g. Year-end audit complete"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger" id="btnConfirmClose"
+                        style="display:none" onclick="confirmClose()">
+                    <i class="bi bi-lock me-1"></i>Lock This Year
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Edit Notes Modal ──────────────────────────────────────── -->
+<div class="modal fade" id="notesModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title">Edit Notes</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="notesId">
+                <textarea class="form-control" id="notesText" rows="4"
+                          placeholder="Internal notes for this fiscal year…"></textarea>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                        data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm"
+                        id="btnSaveNotes" onclick="saveNotes()">Save Notes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+var closeModal = new bootstrap.Modal(document.getElementById('closeModal'));
+var notesModal = new bootstrap.Modal(document.getElementById('notesModal'));
+var selectedFYId = null;
+
+// ── Open Next Year ────────────────────────────────────────────
+function openNextYear(){
+     console.log("ajaxPost defined?", typeof ajaxPost); 
+    Swal.fire({
+        icon: 'question',
+        title: 'Create next fiscal year?',
+        text: 'A new fiscal year will be created starting the day after the current one ends.',
+        confirmButtonText: 'Yes, create it',
+        showCancelButton: true,
+        confirmButtonColor: '#2563EB'
+    }).then(function(r){
+        if(!r.isConfirmed) return;
+        ajaxPost('/FiscalYear/OpenNext', {}).done(function(res){
+            if(res.success){
+                Swal.fire({
+                    icon:'success', title:'Done!',
+                    text: res.message || 'Fiscal year created.',
+                    timer:1800, showConfirmButton:false
+                });
+                setTimeout(()=>location.reload(), 1900);
+            } else {
+                toastError(res.message || 'Failed to create fiscal year.');
+            }
+        });
+    });
+}
+
+// ── Start Close Flow ──────────────────────────────────────────
+function startClose(id, label){
+    selectedFYId = id;
+    document.getElementById('closeFYLabel').textContent = label;
+    document.getElementById('checkLoading').style.display = 'block';
+    document.getElementById('checkResults').style.display = 'none';
+    document.getElementById('btnConfirmClose').style.display = 'none';
+    closeModal.show();
+
+    // Run pre-close check
+    $.get('/FiscalYear/PreCloseCheck?id=' + id, function(res){
+        document.getElementById('checkLoading').style.display = 'none';
+        document.getElementById('checkResults').style.display = 'block';
+
+        if(!res.success){
+            document.getElementById('checkList').innerHTML =
+                '<div class="alert alert-danger small">' + res.message + '</div>';
+            return;
+        }
+
+        var d = res.data;
+        var html = '';
+
+        // Blocking issues
+        (d.blockingIssues || []).forEach(function(issue){
+            html += '<div class="check-item">'
+                + '<div class="check-icon check-block"><i class="bi bi-x"></i></div>'
+                + '<div class="small text-danger">' + issue + '</div>'
+                + '</div>';
+        });
+
+        // Warnings
+        (d.warnings || []).forEach(function(warn){
+            html += '<div class="check-item">'
+                + '<div class="check-icon check-warn"><i class="bi bi-exclamation"></i></div>'
+                + '<div class="small text-warning-emphasis">' + warn + '</div>'
+                + '</div>';
+        });
+
+        // All clear
+        if(!d.blockingIssues?.length && !d.warnings?.length){
+            html = '<div class="check-item">'
+                + '<div class="check-icon check-ok"><i class="bi bi-check"></i></div>'
+                + '<div class="small text-success">All checks passed. Ready to close.</div>'
+                + '</div>';
+        }
+
+        document.getElementById('checkList').innerHTML = html;
+
+        if(d.canClose){
+            document.getElementById('closeOptions').style.display = 'block';
+            document.getElementById('btnConfirmClose').style.display = '';
+        } else {
+            document.getElementById('closeOptions').style.display = 'none';
+        }
+    }).fail(function(){
+        document.getElementById('checkLoading').style.display = 'none';
+        document.getElementById('checkResults').style.display = 'block';
+        document.getElementById('checkList').innerHTML =
+            '<div class="alert alert-danger small">Failed to run pre-close checks.</div>';
+    });
+}
+
+// ── Confirm Close ─────────────────────────────────────────────
+function confirmClose(){
+    var $btn = $('#btnConfirmClose').prop('disabled', true)
+        .html('<span class="spinner-border spinner-border-sm me-1"></span>Locking…');
+
+    var dto = {
+        fiscalYearId: selectedFYId,
+        notes:        document.getElementById('closeNotes').value.trim() || null,
+        openNextYear: document.getElementById('openNextCheck').checked
+    };
+
+    ajaxPost('/FiscalYear/Close', dto, $btn).done(function(res){
+        $btn.prop('disabled', false)
+            .html('<i class="bi bi-lock me-1"></i>Lock This Year');
+
+        if(res.success){
+            closeModal.hide();
+            Swal.fire({
+                icon:'success', title:'Year locked',
+                text: res.message || 'Fiscal year has been locked.',
+                timer:2000, showConfirmButton:false
+            });
+            setTimeout(()=>location.reload(), 2100);
+        } else {
+            toastError(res.message || 'Failed to close fiscal year.');
+        }
+    });
+}
+
+// ── Edit Notes ────────────────────────────────────────────────
+function editNotes(id, currentNotes){
+    document.getElementById('notesId').value   = id;
+    document.getElementById('notesText').value = currentNotes || '';
+    notesModal.show();
+}
+
+function saveNotes(){
+    var dto = {
+        id:    document.getElementById('notesId').value,
+        notes: document.getElementById('notesText').value.trim() || null
+    };
+    var $btn = $('#btnSaveNotes').prop('disabled', true)
+        .html('<span class="spinner-border spinner-border-sm"></span>');
+
+    ajaxPost('/FiscalYear/UpdateNotes', dto, $btn).done(function(res){
+        $btn.prop('disabled', false).html('Save Notes');
+        if(res.success){
+            toastSuccess(res.message || 'Notes saved.');
+            notesModal.hide();
+            setTimeout(()=>location.reload(), 700);
+        } else {
+            toastError(res.message);
+        }
+    });
+}
+</script>
+}

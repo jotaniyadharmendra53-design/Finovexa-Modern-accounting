@@ -1,0 +1,293 @@
+﻿@model IEnumerable<InvoiceSaaS.Application.DTOs.Roles.RoleDto>
+@{
+    ViewData["Title"] = "Roles & Permissions";
+    ViewBag.ActiveMenu = "roles";
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    var perms = (ViewBag.Permissions as HashSet<string>) ?? new HashSet<string>();
+    bool can(string c) => isSA || perms.Contains(c);
+}
+
+<div class="page-header d-flex align-items-center justify-content-between">
+    @Html.AntiForgeryToken()
+    <div>
+        <h4 class="mb-1">Roles &amp; Permissions</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item active">Roles</li>
+            </ol>
+        </nav>
+    </div>
+    @if (can("roles.create"))
+    {
+        <button class="btn btn-primary" id="btnNewRole">
+            <i class="bi bi-plus-lg me-1"></i> New Role
+        </button>
+    }
+</div>
+
+<div class="alert d-flex align-items-center gap-2 mb-4 border-0"
+     style="background:#EFF6FF;color:#2563EB;border-radius:12px;">
+    <i class="bi bi-info-circle-fill"></i>
+    <span class="fs-13">
+        <strong>Dynamic Roles</strong> — Create custom roles with any combination of permissions.
+        <span class="badge ms-1" style="background:#BFDBFE;color:#2563EB;font-weight:600;">System</span>
+        @* roles (Super Admin, Admin) cannot be deleted. *@
+    </span>
+</div>
+
+<div class="row g-3" id="rolesGrid">
+    @foreach (var role in Model)
+    {
+        <div class="col-xl-4 col-md-6" id="roleCol_@role.Id">
+            <div class="card border-0 shadow-sm h-100 hover-shadow">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-start justify-content-between mb-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="stat-icon indigo" style="width:44px;height:44px;border-radius:12px;font-size:1.1rem;">
+                                <i class="bi bi-shield-check"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 fw-700">@role.Name</h6>
+                                @if (role.IsSystem)
+                                {
+                                    <span class="badge" style="background:#EFF6FF;color:#3B82F6;font-size:.7rem;font-weight:600;">System</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="dropdown">
+                            <button class="btn btn-icon btn-outline-secondary border-0"
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow border-0"
+                                style="border-radius:10px;min-width:160px;">
+                                @if (can("roles.view"))
+                                {
+                                    <li>
+                                        <button class="dropdown-item d-flex align-items-center gap-2 py-2"
+                                                onclick="viewRole('@role.Id')">
+                                            <i class="bi bi-eye text-primary"></i> View Permissions
+                                        </button>
+                                    </li>
+                                }
+                                @if (can("roles.edit") && !role.IsSystem)
+                                {
+                                    <li>
+                                        <button class="dropdown-item d-flex align-items-center gap-2 py-2"
+                                                onclick="editRole('@role.Id')">
+                                            <i class="bi bi-pencil text-warning"></i> Edit Role
+                                        </button>
+                                    </li>
+                                }
+                                @if (can("roles.delete") && !role.IsSystem)
+                                {
+                                    <li><hr class="dropdown-divider my-1" /></li>
+                                    <li>
+                                        <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-danger"
+                                                onclick="deleteRole('@role.Id', '@role.Name')">
+                                            <i class="bi bi-trash"></i> Delete Role
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(role.Description))
+                    {
+                        <p class="text-muted fs-13 mb-3">@role.Description</p>
+                    }
+
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex gap-3">
+                            <div class="text-center">
+                                <div class="fw-700" style="color:var(--primary);">@role.PermissionCount</div>
+                                <div class="text-muted fs-12">Permissions</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="fw-700">@role.UserCount</div>
+                                <div class="text-muted fs-12">Users</div>
+                            </div>
+                        </div>
+                        <span class="badge @(role.IsActive ? "bg-success-subtle text-success" : "bg-secondary-subtle text-secondary")"
+                              style="font-size:.72rem;">
+                            @(role.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-top pt-2 pb-3 px-4">
+                    <div class="text-muted fs-12">Created @role.CreatedAt.ToString("dd MMM yyyy")</div>
+                </div>
+            </div>
+        </div>
+    }
+    @if (!Model.Any())
+    {
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="empty-state py-5">
+                    <div class="empty-state-icon"><i class="bi bi-shield-check"></i></div>
+                    <h6>No roles found</h6>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal fade" id="roleModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-shield-plus me-2 text-primary"></i>
+                    <span id="roleModalTitleText">New Role</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" id="roleModalBody">
+                <div class="text-center p-5"><div class="spinner-border text-primary"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Permissions Modal -->
+<div class="modal fade" id="viewPermModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-eye me-2 text-primary"></i> Role Permissions
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="viewPermBody">
+                <div class="text-center p-4"><div class="spinner-border text-primary"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const roleModal     = new bootstrap.Modal(document.getElementById('roleModal'));
+        const viewPermModal = new bootstrap.Modal(document.getElementById('viewPermModal'));
+
+        // New Role button
+        $('#btnNewRole').on('click', function () {
+            $('#roleModalTitleText').text('New Role');
+            loadForm('/Role/Create');
+        });
+
+        function editRole(id) {
+            $('#roleModalTitleText').text('Edit Role');
+            loadForm('/Role/Edit/' + id);
+        }
+
+        function loadForm(url) {
+            $('#roleModalBody').html('<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>');
+            roleModal.show();
+            $.get(url)
+                .done(function(html) { $('#roleModalBody').html(html); initPermCheckboxes(); })
+                .fail(function()    { $('#roleModalBody').html('<p class="text-danger p-4">Failed to load form.</p>'); });
+        }
+
+        function viewRole(id) {
+            $('#viewPermBody').html('<div class="text-center p-4"><div class="spinner-border text-primary"></div></div>');
+            viewPermModal.show();
+            $.get('/Role/Edit/' + id)
+                .done(function(html) {
+                    $('#viewPermBody').html(html);
+                    $('#viewPermBody input, #viewPermBody #saveRoleBtn').prop('disabled', true);
+                    $('#viewPermBody #roleName, #viewPermBody #roleDescription').attr('readonly', true);
+                })
+                .fail(function() { $('#viewPermBody').html('<p class="text-danger p-4">Failed to load.</p>'); });
+        }
+
+        function saveRole() {
+            var id   = $('#roleForm').data('id') || null;
+            var name = $('#roleName').val().trim();
+            var desc = $('#roleDescription').val().trim();
+            var pids = [];
+            $('input.perm-checkbox:checked').each(function() { pids.push($(this).val()); });
+
+            if (!name) { toastError('Role name is required.'); $('#roleName').focus(); return; }
+            if (!pids.length) {
+                Swal.fire({ icon:'warning', title:'No permissions selected',
+                    text:'Please select at least one permission.', confirmButtonColor:'#2563EB' });
+                return;
+            }
+
+            var isEdit = !!id;
+            var data   = isEdit
+                ? { id: id, name: name, description: desc, permissionIds: pids }
+                : { name: name, description: desc, permissionIds: pids };
+
+            ajaxPost(isEdit ? '/Role/Edit' : '/Role/Create', data, $('#saveRoleBtn'))
+                .done(function(res) {
+                    if (res.success) {
+                        roleModal.hide();
+                        toastSuccess(res.message || (isEdit ? 'Role updated.' : 'Role created.'));
+                        setTimeout(function() { location.reload(); }, 800);
+                    } else {
+                        showFormErrors(res.errors && res.errors.length ? res.errors : [res.message]);
+                    }
+                })
+                .fail(function() { toastError('Server error. Please try again.'); });
+        }
+
+        function deleteRole(id, name) {
+            confirmDelete({
+                title: 'Delete "' + name + '"?',
+                text:  'This cannot be undone. Ensure no users are assigned first.'
+            }).then(function(r) {
+                if (!r.isConfirmed) return;
+                $.ajax({
+                    url:     '/Role/Delete/' + id,
+                    type:    'POST',
+                    headers: { 'RequestVerificationToken': getCsrfToken() }
+                })
+                .done(function(res) {
+                    if (res.success) {
+                        $('#roleCol_' + id).fadeOut(300, function() { $(this).remove(); });
+                        toastSuccess(res.message || 'Role deleted.');
+                    } else {
+                        Swal.fire({
+                            icon: 'error', title: 'Cannot Delete',
+                            text: res.message || (res.errors && res.errors[0]) || 'Delete failed.',
+                            confirmButtonColor: '#2563EB'
+                        });
+                    }
+                })
+                .fail(function() { toastError('Server error. Please try again.'); });
+            });
+        }
+
+        function initPermCheckboxes() {
+            $(document).off('change', '.module-select-all').on('change', '.module-select-all', function() {
+                var module = $(this).data('module');
+                $('.perm-checkbox[data-module="' + module + '"]').prop('checked', $(this).is(':checked'));
+                updateModuleHeader(module);
+            });
+            $(document).off('change', '.perm-checkbox').on('change', '.perm-checkbox', function() {
+                updateModuleHeader($(this).data('module'));
+            });
+        }
+
+        function updateModuleHeader(module) {
+            var $boxes   = $('.perm-checkbox[data-module="' + module + '"]');
+            var total    = $boxes.length;
+            var checked  = $boxes.filter(':checked').length;
+            var $all     = $('.module-select-all[data-module="' + module + '"]');
+            $all.prop('checked', checked === total).prop('indeterminate', checked > 0 && checked < total);
+            var $badge = $all.closest('.permission-module-header').find('.perm-count-badge');
+            $badge.text(checked + '/' + total);
+            $badge.toggleClass('bg-primary text-white', checked > 0)
+                  .toggleClass('bg-light text-muted',   checked === 0);
+        }
+
+        $(document).ready(function() { initPermCheckboxes(); });
+    </script>
+}

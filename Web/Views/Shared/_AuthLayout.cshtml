@@ -1,0 +1,79 @@
+@{
+    Layout = null;
+    var topHint = ViewBag.TopHint as string;
+    var topHintLink = ViewBag.TopHintLink as string;
+    var topHintText = ViewBag.TopHintText as string;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="theme-color" content="#0A0B1E"/>
+    @{
+        var __pageTitle = ViewData["Title"] as string;
+        var __fullTitle = string.IsNullOrWhiteSpace(__pageTitle)
+            ? "Finovexa — AllUpNext"
+            : $"{__pageTitle} — Finovexa — AllUpNext";
+    }
+    <title>@__fullTitle</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"/>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.8/sweetalert2.min.css"/>
+    <link rel="stylesheet" href="~/css/auth.css"/>
+
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+<div class="auth-shell">
+
+    <div class="aurora">
+        <div class="aurora__extra"></div>
+        <div class="aurora__extra2"></div>
+        <div class="aurora__grain"></div>
+    </div>
+
+    <header class="auth-top">
+        <a href="/" class="auth-mark" aria-label="Finovexa home">
+            <span class="auth-mark__glyph"><i class="bi bi-pie-chart-fill"></i></span>
+            <span>Finovexa</span>
+        </a>
+        @if (!string.IsNullOrEmpty(topHint))
+        {
+            <div class="auth-top__hint">
+                @topHint
+                @if (!string.IsNullOrEmpty(topHintLink) && !string.IsNullOrEmpty(topHintText))
+                {
+                    <a href="@topHintLink">@topHintText</a>
+                }
+            </div>
+        }
+    </header>
+
+    <main class="auth-stage">
+        @RenderBody()
+    </main>
+
+    <footer class="auth-foot">
+        <div>
+            &copy; @DateTime.Now.Year Finovexa
+            <span class="auth-foot__dot">&bull;</span> Modern Accounting, Simplified
+            <span class="auth-foot__dot">&bull;</span> All rights reserved
+        </div>
+        <div class="auth-foot__by">an <strong>AllUpNext</strong> company</div>
+    </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.8/sweetalert2.min.js"></script>
+
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

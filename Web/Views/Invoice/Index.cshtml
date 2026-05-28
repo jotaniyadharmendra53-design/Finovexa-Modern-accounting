@@ -1,0 +1,636 @@
+﻿@model IEnumerable<InvoiceSaaS.Application.DTOs.Invoices.InvoiceListItemDto>
+@using InvoiceSaaS.Domain.Enums
+@{
+    ViewData["Title"] = "Invoices";
+    ViewBag.ActiveMenu = "invoices";
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    var perms = (ViewBag.Permissions as HashSet<string>) ?? new HashSet<string>();
+    bool can(string c) => isSA || perms.Contains(c);
+    var clients = (ViewBag.Clients as IEnumerable<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>)
+                  ?? Enumerable.Empty<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>();
+
+
+    int currentPage = (int)(ViewBag.Page ?? 1);
+    int pageSize = (int)(ViewBag.PageSize ?? 10);
+    int totalCount = (int)(ViewBag.TotalCount ?? 0);
+    int totalPages = (int)(ViewBag.TotalPages ?? 1);
+
+    var filter = ViewBag.Filter as InvoiceSaaS.Application.DTOs.Invoices.InvoiceFilterDto
+                       ?? new InvoiceSaaS.Application.DTOs.Invoices.InvoiceFilterDto();
+    var activeStatus = filter.Status.HasValue ? ((int)filter.Status.Value).ToString() : "";
+    var activeClient = filter.ClientId?.ToString() ?? "";
+    var activeSearch = filter.Search ?? "";
+    var activeFrom = filter.DateFrom?.ToString("yyyy-MM-dd") ?? "";
+    var activeTo = filter.DateTo?.ToString("yyyy-MM-dd") ?? "";
+
+
+
+}
+
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <h4 class="mb-1">Invoices</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item active">Invoices</li>
+            </ol>
+        </nav>
+    </div>
+    @if (can("invoices.create"))
+    {
+        <a href="/Invoice/Create" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i> New Invoice
+        </a>
+    }
+</div>
+
+<!-- Status quick-filter tabs -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex align-items-center gap-1 flex-wrap" id="statusTabs">
+            @{
+                var statuses = new[] {
+                        ("", "All"),
+                        ("0", "Draft"),
+                        ("1", "Sent"),
+                        ("2", "Paid"),
+                        ("5", "Partially Paid"),
+                        ("3", "Overdue"),
+                        ("4", "Cancelled")
+                        };
+            }
+            @foreach (var (val, label) in statuses)
+            {
+                <button class="btn btn-sm status-tab @(val == "" ? "active" : "")"
+                        data-status="@val"
+                        style="border-radius:20px; padding:.3rem .85rem; font-size:.8rem; font-weight:600;
+                                   border:none; transition:all .15s;
+                                   @(val == "" ? "background:var(--primary);color:#fff;" : "background:#F3F4F6;color:#6B7280;")">
+                    @label
+                </button>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Filters row -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="bi bi-search text-muted"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0" id="invSearch"
+                           placeholder="Search invoice # or client…" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="clientFilter">
+                    <option value="">All Clients</option>
+                    @foreach (var c in clients)
+                    {
+                        <option value="@c.Value">@c.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control" id="dateFrom" placeholder="From" />
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control" id="dateTo" placeholder="To" />
+            </div>
+            <div class="col-md-2 d-flex align-items-center justify-content-between">
+                <span class="text-muted fs-13">
+                    <span id="invCount">@Model.Count()</span> invoices
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invoice Table -->
+<div id="invListCard" class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0" id="invTable">
+            <thead>
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Client</th>
+                    <th>Issue Date</th>
+                    <th>Due Date</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="invBody">
+                @foreach (var inv in Model)
+                {
+                    var statusCls = inv.StatusName switch
+                    {
+                            "Draft" => "draft",
+                            "Sent" => "sent",
+                            "Paid" => "paid",
+                            "Overdue" => "overdue",
+                            "Cancelled" => "cancelled",
+                            "PartiallyPaid" => "partial",
+                        _ => "draft"
+                    };
+                    <tr id="invRow_@inv.Id"
+                        class="cursor-pointer inv-row"
+                        data-inv-num="@inv.InvoiceNumber.ToLower()"
+                        data-client="@inv.ClientName.ToLower()"
+                        data-amount="@inv.Total.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)"
+                        data-status="@((int)inv.Status)"
+                        data-client-id="@inv.ClientId"
+                        data-issue="@inv.IssueDate.ToString("yyyy-MM-dd")"
+                        data-due="@inv.DueDate.ToString("yyyy-MM-dd")"
+                        onclick="viewInvoice('@inv.Id', event)">
+                        <td>
+                            <span class="fw-700" style="color:var(--primary);">@inv.InvoiceNumber</span>
+                            @if (inv.IsOverdue)
+                            {
+                                <i class="bi bi-exclamation-circle text-danger ms-1 fs-12"
+                                   data-bs-toggle="tooltip" title="Overdue"></i>
+                            }
+                        </td>
+                        <td class="fw-500">@inv.ClientName</td>
+                        <td class="text-muted fs-13">@inv.IssueDate.ToString("dd MMM yyyy")</td>
+                        <td class="fs-13 @(inv.IsOverdue ? "text-danger fw-600" : "text-muted")">
+                            @inv.DueDate.ToString("dd MMM yyyy")
+                        </td>
+                        @* <td>
+                            <div class="fw-700">₹@inv.Total.ToString("N2")</div>
+                            @if (inv.BalanceDue > 0 && inv.BalanceDue < inv.Total)
+                            {
+                                <div class="text-muted fs-12">Due: ₹@inv.BalanceDue.ToString("N2")</div>
+                            } *@
+                            @* <div class="text-muted fs-12">@inv.CurrencyCode</div> *@
+                        @*     <div class="text-muted fs-12">INR</div>
+                        </td> *@
+
+                        @{
+                            // Currency symbol lookup
+                            var symMap = new Dictionary<string, string>
+                            {
+                                ["INR"] = "₹",
+                                ["USD"] = "$",
+                                ["EUR"] = "€",
+                                ["GBP"] = "£",
+                                ["AUD"] = "A$",
+                                ["CAD"] = "C$",
+                                ["SGD"] = "S$",
+                                ["AED"] = "AED ",
+                                ["JPY"] = "¥",
+                                ["CNY"] = "¥"
+                            };
+                            var cur = inv.CurrencyCode ?? "INR";
+                            var sym = symMap.GetValueOrDefault(cur, cur + " ");
+                        }
+                        <td>
+                            <div class="fw-700">@sym@inv.Total.ToString("N2")</div>
+                            @if (inv.BalanceDue > 0 && inv.BalanceDue < inv.Total)
+                            {
+                                <div class="text-muted fs-12">Due: @sym@inv.BalanceDue.ToString("N2")</div>
+                            }
+                            <div class="text-muted fs-12">@cur</div>
+                        </td>
+
+                        <td><span class="status-badge @statusCls">@inv.StatusName</span></td>
+                        <td class="text-end" onclick="event.stopPropagation()">
+                            <div class="d-flex justify-content-end gap-1">
+                                <a href="/Invoice/Detail/@inv.Id"
+                                   class="btn btn-outline-warning"
+                                   data-bs-toggle="tooltip" title="View">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+
+                                @if (can("invoices.edit") && inv.Status == InvoiceStatus.Draft)
+                                {
+                                    <a href="/Invoice/Edit/@inv.Id"
+                                       class="btn btn-outline-primary"
+                                       data-bs-toggle="tooltip" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                }
+                                @if (can("invoices.send") && (inv.Status == InvoiceStatus.Draft || inv.Status == InvoiceStatus.Sent))
+                                {
+                                    <button class="btn btn-outline-success"
+                                            onclick="sendInvoice('@inv.Id','@inv.InvoiceNumber')"
+                                            data-bs-toggle="tooltip" title="Send to client">
+                                        <i class="bi bi-send"></i>
+                                    </button>
+                                }
+                                @if (can("invoices.delete") && inv.Status != InvoiceStatus.Paid)
+                                {
+                                    <button class="btn btn-outline-danger"
+                                            onclick="deleteInvoice('@inv.Id','@inv.InvoiceNumber')"
+                                            data-bs-toggle="tooltip" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <!-- ── Pagination ─────────────────────────────────────────── -->
+@if (totalPages > 0)
+{
+    <div class="card-footer bg-transparent border-top d-flex align-items-center justify-content-between px-3 py-2">
+        <span class="text-muted small">
+            Showing @((currentPage - 1) * pageSize + 1)–@(Math.Min(currentPage * pageSize, totalCount))
+            of @totalCount invoices
+        </span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0 gap-1">
+                <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                    <a class="page-link rounded"
+                       href="@BuildUrl(currentPage - 1, activeStatus, activeClient, activeSearch, activeFrom, activeTo, pageSize)">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                @{
+                    int start = Math.Max(1, currentPage - 2);
+                    int end   = Math.Min(totalPages, start + 4);
+                    start     = Math.Max(1, end - 4);
+                }
+                @if (start > 1)
+                {
+                    <li class="page-item">
+                        <a class="page-link rounded"
+                           href="@BuildUrl(1, activeStatus, activeClient, activeSearch, activeFrom, activeTo, pageSize)">1</a>
+                    </li>
+                    @if (start > 2)
+                    {
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    }
+                }
+                @for (int pg = start; pg <= end; pg++)
+                {
+                    <li class="page-item @(pg == currentPage ? "active" : "")">
+                        <a class="page-link rounded"
+                           href="@BuildUrl(pg, activeStatus, activeClient, activeSearch, activeFrom, activeTo, pageSize)">
+                            @pg
+                        </a>
+                    </li>
+                }
+                @if (end < totalPages)
+                {
+                    @if (end < totalPages - 1)
+                    {
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    }
+                    <li class="page-item">
+                        <a class="page-link rounded"
+                           href="@BuildUrl(totalPages, activeStatus, activeClient, activeSearch, activeFrom, activeTo, pageSize)">
+                            @totalPages
+                        </a>
+                    </li>
+                }
+                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                    <a class="page-link rounded"
+                       href="@BuildUrl(currentPage + 1, activeStatus, activeClient, activeSearch, activeFrom, activeTo, pageSize)">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small">Per page:</span>
+            <select class="form-select form-select-sm" style="width:70px" id="pageSizeSelect">
+                        @foreach (var ps in new[] { 10, 20, 50, 100 })
+                        {
+                            if (ps == pageSize)
+                            {
+                                <option value="@ps" selected="selected">@ps</option>
+                            }
+                            else
+                            {
+                                <option value="@ps">@ps</option>
+                            }
+                        }
+            </select>
+        </div>
+    </div>
+}
+
+@functions {
+    string BuildUrl(int page, string status, string clientId, string search,
+                    string dateFrom, string dateTo, int pageSize)
+    {
+        var q = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrEmpty(status))   q.Add($"status={status}");
+        if (!string.IsNullOrEmpty(clientId)) q.Add($"clientId={clientId}");
+        if (!string.IsNullOrEmpty(search))   q.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrEmpty(dateFrom)) q.Add($"dateFrom={dateFrom}");
+        if (!string.IsNullOrEmpty(dateTo))   q.Add($"dateTo={dateTo}");
+        q.Add($"page={page}");
+        q.Add($"pageSize={pageSize}");
+        return "/Invoice?" + string.Join("&", q);
+    }
+}
+
+
+    </div>
+    @if (!Model.Any())
+    {
+        <div class="empty-state py-5 text-center d-flex flex-column align-items-center">
+            <div class="empty-state-icon"><i class="bi bi-receipt"></i></div>
+            <h6>No invoices found</h6>
+            <p class="text-muted fs-13">Create your first invoice to get started.</p>
+            @if (can("invoices.create"))
+            {
+                <a href="/Invoice/Create" class="btn btn-primary btn-sm">
+                    <i class="bi bi-plus-lg me-1"></i>Create Invoice
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+
+        // ── Page size change (AJAX, no full reload) ─────────────────
+        function loadInvoicesFromUrl(url) {
+            $.get(url).done(function (html) {
+                var tmp = $('<div>').append($.parseHTML(html));
+                var newCard = tmp.find('#invListCard');
+                if (newCard.length) {
+                    $('#invListCard').replaceWith(newCard);
+                    setupInvoicePaginationHandlers();
+                } else {
+                    // fallback to full navigation if fragment not found
+                    window.location.href = url;
+                }
+            }).fail(function () { toastError('Failed to load invoices.'); });
+        }
+
+        function setupInvoicePaginationHandlers() {
+            // page-size selector — load first page with new size via AJAX
+            $('#pageSizeSelect').off('change').on('change', function () {
+                var ps = $(this).val();
+                // detect active status tab (same logic as filterInvoices)
+                var status = $('.status-tab.active, .status-tab[style*="var(--primary)"]').first().data('status') || '';
+                var client = $('#clientFilter').val();
+                var search = $('#invSearch').val();
+                var from = $('#dateFrom').val();
+                var to = $('#dateTo').val();
+                var url = '/Invoice?page=1&pageSize=' + ps
+                    + (status ? '&status=' + status : '')
+                    + (client ? '&clientId=' + client : '')
+                    + (search ? '&search=' + encodeURIComponent(search) : '')
+                    + (from ? '&dateFrom=' + from : '')
+                    + (to ? '&dateTo=' + to : '');
+                loadInvoicesFromUrl(url);
+            });
+
+            // pagination links — load via AJAX
+            $(document).off('click', '#invListCard .pagination a').on('click', '#invListCard .pagination a', function (e) {
+                e.preventDefault();
+                var href = $(this).attr('href');
+                if (href) loadInvoicesFromUrl(href);
+            });
+        }
+
+        // initialize handlers
+        setupInvoicePaginationHandlers();
+
+        // ── Status tabs ───────────────────────────────────────────────
+        // $('.status-tab').on('click', function () {
+        //     $('.status-tab').css({ background:'#F3F4F6', color:'#6B7280' });
+        //     $(this).css({ background:'var(--primary)', color:'#fff' });
+        //     filterInvoices();
+        // });
+                // ── Status tabs — server-side reload ─────────────────────────
+        var _activeStatus = '@activeStatus'; // from server
+
+                // ── Restore filter inputs from server values on page load ────
+        $(function () {
+            // Search
+            var sv = '@Html.Raw(activeSearch)';
+            if (sv) $('#invSearch').val(sv);
+
+            // Client dropdown
+            var cv = '@activeClient';
+            if (cv) $('#clientFilter').val(cv);
+
+            // Date from
+            var df = '@activeFrom';
+            if (df) $('#dateFrom').val(df);
+
+            // Date to
+            var dt = '@activeTo';
+            if (dt) $('#dateTo').val(dt);
+        });
+
+
+        // Set correct tab as active on load
+        $('.status-tab').each(function () {
+            var val = String($(this).data('status') ?? '');
+            if (val === _activeStatus) {
+                $(this).css({ background: 'var(--primary)', color: '#fff' });
+            } else {
+                $(this).css({ background: '#F3F4F6', color: '#6B7280' });
+            }
+        });
+
+        $('.status-tab').on('click', function () {
+            var status = String($(this).data('status') ?? '');
+            var client = $('#clientFilter').val() || '';
+            var search = $('#invSearch').val() || '';
+            var from   = $('#dateFrom').val() || '';
+            var to     = $('#dateTo').val() || '';
+            var ps     = $('#pageSizeSelect').val() || '10';
+
+            var url = '/Invoice?page=1&pageSize=' + ps
+                + (status ? '&status=' + status : '')
+                + (client ? '&clientId=' + client : '')
+                + (search ? '&search=' + encodeURIComponent(search) : '')
+                + (from   ? '&dateFrom=' + from : '')
+                + (to     ? '&dateTo='   + to   : '');
+
+            // window.location.href = url;
+              loadInvoicesFromUrl(url);
+              
+        $('.status-tab').css({ background:'#F3F4F6', color:'#6B7280' });
+        $(this).css({ background:'var(--primary)', color:'#fff' });
+
+        });
+
+        // ── Row click → detail ────────────────────────────────────────
+        function viewInvoice(id, e) {
+            if ($(e.target).closest('button,a').length) return;
+            window.location.href = '/Invoice/Detail/' + id;
+        }
+
+       // ── Send invoice ──────────────────────────────────────────────
+        function sendInvoice(id, num) {
+            Swal.fire({
+                icon: 'question',
+                title: 'Send Invoice?',
+                html: `Send <strong>${num}</strong> to the client by email?`,
+                showCancelButton: true,
+                confirmButtonText: '<i class="bi bi-send me-1"></i> Yes, Send',
+                confirmButtonColor: '#10B981',
+                cancelButtonColor: '#6B7280'
+            }).then(r => {
+                if (!r.isConfirmed) return;
+                Swal.fire({ title: 'Sending…', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                $.ajax({ url: '/Invoice/Send/' + id, type: 'POST',
+                         headers: { 'RequestVerificationToken': getCsrfToken() } })
+                    .done(res => {
+                        Swal.close();
+                        if (res.success) { toastSuccess(res.message); setTimeout(() => location.reload(), 700); }
+                        else Swal.fire({ icon:'error', title:'Error', text: res.message, confirmButtonColor:'#2563EB' });
+                    })
+                    .fail(() => { Swal.close(); toastError('Server error.'); });
+            });
+        }
+        // ── Delete invoice ────────────────────────────────────────────
+        function deleteInvoice(id, num) {
+            confirmDelete({ title: `Delete ${num}?`, text: 'This invoice will be permanently deleted.' })
+            .then(r => {
+                if (!r.isConfirmed) return;
+                $.ajax({ url: '/Invoice/Delete/' + id, type: 'DELETE',
+                         headers: { 'RequestVerificationToken': getCsrfToken() } })
+                .done(res => {
+                    if (res.success) {
+                        $('#invRow_' + id).fadeOut(300, function () {
+                            $(this).remove();
+                            $('#invCount').text($('.inv-row:visible').length);
+                        });
+                        toastSuccess(res.message || 'Invoice deleted.');
+                    } else {
+                        Swal.fire({ icon:'error', title:'Error', text: res.message, confirmButtonColor:'#2563EB' });
+                    }
+                });
+            });
+        }
+
+        // ── Client-side filter ────────────────────────────────────────
+        function filterInvoices() {
+            const search = $('#invSearch').val().toLowerCase();
+            // Numeric-only version of search (strip currency symbols, commas etc.)
+            const searchNum = (search || '').replace(/[^0-9.]/g, '');
+            const status = $('.status-tab.active, .status-tab[style*="var(--primary)"]').first().data('status') ?? '';
+            const client = $('#clientFilter').val();
+            const from   = $('#dateFrom').val();
+            const to     = $('#dateTo').val();
+
+            // Re-detect active tab
+            let activeStatus = '';
+            $('.status-tab').each(function () {
+                if ($(this).css('background-color') !== 'rgb(243, 244, 246)' &&
+                    $(this).css('color') === 'rgb(255, 255, 255)') {
+                    activeStatus = $(this).data('status');
+                }
+            });
+
+            let n = 0;
+            $('#invBody tr.inv-row').each(function () {
+                const num    = $(this).data('inv-num') || '';
+                const cl     = $(this).data('client') || '';
+                const amt    = String($(this).data('amount') || '');
+                const st     = String($(this).data('status'));
+                const issue  = $(this).data('issue') || '';
+                const due    = $(this).data('due')   || '';
+
+                // Normalize amount and match against numeric search if present
+                const amtNormalized = String(amt || '').replace(/[^0-9.]/g, '');
+                const okSearch = !search || num.includes(search) || cl.includes(search) || (searchNum && amtNormalized.includes(searchNum)) || amt.includes(search);
+                 const okStatus = !activeStatus || st === String(activeStatus);
+                const okClient = !client || $(this).attr('data-client-id') === client;
+                const okFrom   = !from || issue >= from;
+                const okTo     = !to   || due  <= to;
+                const show = okSearch && okStatus && okClient && okFrom && okTo;
+
+                $(this).toggle(show);
+                if (show) n++;
+            });
+            $('#invCount').text(n);
+        }
+
+        // $('#invSearch,#clientFilter,#dateFrom,#dateTo').on('input change', filterInvoices);
+
+                // Search & filters → reload with server-side filter
+        var _filterTimer;
+        $('#invSearch').on('input', function () {
+            clearTimeout(_filterTimer);
+            _filterTimer = setTimeout(function () { applyFilters(); }, 400);
+        });
+        $('#clientFilter,#dateFrom,#dateTo').on('change', function () { applyFilters(); });
+
+        function applyFilters() {
+            var ps     = $('#pageSizeSelect').val() || '10';
+            var status = _activeStatus;
+            var client = $('#clientFilter').val() || '';
+            var search = $('#invSearch').val() || '';
+            var from   = $('#dateFrom').val() || '';
+            var to     = $('#dateTo').val() || '';
+
+            var url = '/Invoice?page=1&pageSize=' + ps
+                + (status ? '&status=' + status : '')
+                + (client ? '&clientId=' + client : '')
+                + (search ? '&search=' + encodeURIComponent(search) : '')
+                + (from   ? '&dateFrom=' + from : '')
+                + (to     ? '&dateTo='   + to   : '');
+
+            // window.location.href = url;
+             loadInvoicesFromUrl(url);
+        }
+
+                function loadInvoicesFromUrl(url) {
+            $.get(url).done(function (html) {
+                var tmp = $('<div>').append($.parseHTML(html));
+                var newCard = tmp.find('#invListCard');
+
+                if (newCard.length) {
+                    $('#invListCard').replaceWith(newCard);
+                    setupInvoicePaginationHandlers();
+
+                    // ✅ Restore focus
+                    $('#invSearch').focus();
+
+                } else {
+                    window.location.href = url;
+                }
+            });
+        }
+
+
+        // Tab click filter
+        // $(document).on('click', '.status-tab', function () {
+        //     $('.status-tab').css({ background:'#F3F4F6', color:'#6B7280' });
+        //     $(this).css({ background:'var(--primary)', color:'#fff' });
+        //     filterInvoices();
+        // });
+
+        // $('#btnClearFilters').on('click', function () {
+        //     $('#invSearch').val('');
+        //     $('#clientFilter').val('');
+        //     $('#dateFrom').val('');
+        //     $('#dateTo').val('');
+        //     $('.status-tab').css({ background:'#F3F4F6', color:'#6B7280' });
+        //     $('.status-tab[data-status=""]').css({ background:'var(--primary)', color:'#fff' });
+        //     filterInvoices();
+        // });
+
+        $('#btnClearFilters').on('click', function () {
+            window.location.href = '/Invoice?page=1&pageSize=10';
+        });
+
+        // $('[data-bs-toggle="tooltip"]').tooltip();
+                var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+    </script>
+}

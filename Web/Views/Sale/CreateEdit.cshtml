@@ -1,0 +1,198 @@
+﻿@model SaveSaleDto
+@{
+    ViewData["Title"] = "New Sale";
+    ViewBag.ActiveMenu = "sales";
+    var clients  = ViewBag.Clients  as IEnumerable<SelectItemDto> ?? Enumerable.Empty<SelectItemDto>();
+    var products = ViewBag.Products as IEnumerable<SelectItemDto> ?? Enumerable.Empty<SelectItemDto>();
+}
+
+@section Styles {
+<style>
+.line-row { background:var(--bs-body-bg);border-radius:8px;padding:10px 12px;margin-bottom:8px;border:1px solid var(--bs-border-color); }
+#totals-box { background:#F8FAFC;border-radius:12px;padding:20px; }
+.total-row { display:flex;justify-content:space-between;padding:5px 0; }
+.total-row.grand { border-top:2px solid #E5E7EB;margin-top:8px;padding-top:12px;font-weight:700;font-size:1rem; }
+</style>
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h4 class="mb-1">New Sale</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/Sale">Sales</a></li>
+            <li class="breadcrumb-item active">New</li>
+        </ol></nav>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/Sale" class="btn btn-outline-secondary">Cancel</a>
+        <button class="btn btn-primary" id="btnSave" onclick="saveSale()">
+            <i class="bi bi-check-lg me-1"></i> Save Sale
+        </button>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Sale Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="saleDate" value="@Model.SaleDate.ToString("yyyy-MM-dd")">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Payment Method</label>
+                        <select class="form-select" id="payMethod">
+                            <option value="">— Select —</option>
+                            <option>Cash</option><option>UPI</option><option>Bank Transfer</option>
+                            <option>Credit Card</option><option>Cheque</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Client (optional)</label>
+                        <select class="form-select" id="clientId">
+                            <option value="">— Walk-in / No client —</option>
+                            @foreach(var c in clients){<option value="@c.Value">@c.Text</option>}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent d-flex align-items-center justify-content-between">
+                <h6 class="mb-0">Items Sold<span class="text-danger"> *</span></h6>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addLine()"><i class="bi bi-plus"></i> Add Item</button>
+            </div>
+            <div class="card-body">
+                <div class="d-none d-md-flex text-muted small mb-2 px-1">
+                    <span style="flex:3">Description</span>
+                    <span style="width:80px;text-align:left">Qty</span>
+                    <span style="width:120px;text-align:left">Unit Price</span>
+                    <span style="width:120px;text-align:left">Amount</span>
+                    <span style="width:36px"></span>
+                </div>
+                <div id="lineItems"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2 w-100" onclick="addLine()">
+                    <i class="bi bi-plus me-1"></i> Add Row
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <div id="totals-box">
+                    <div class="total-row"><span class="text-muted">Subtotal</span><span id="tSubtotal">₹0.00</span></div>
+                    <div class="total-row">
+                        <span class="text-muted d-flex gap-2 align-items-center">Tax %
+                            <input type="number" id="taxRate" class="form-control form-control-sm" style="width:70px" min="0" max="100" value="0" oninput="recalc()">
+                        </span>
+                        <span id="tTax">₹0.00</span>
+                    </div>
+                    <div class="total-row">
+                        <span class="text-muted d-flex gap-2 align-items-center">Discount ₹
+                            <input type="number" id="discount" class="form-control form-control-sm" style="width:90px" min="0" value="0" oninput="recalc()">
+                        </span>
+                        <span id="tDiscount" class="text-success">-₹0.00</span>
+                    </div>
+                    <div class="total-row grand"><span>Total</span><span id="tTotal" class="text-primary">₹0.00</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <label class="form-label">Notes</label>
+                <textarea class="form-control" id="notes" rows="3" placeholder="Optional notes…"></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+var productList = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+    (products??Enumerable.Empty<SelectItemDto>())
+    .Select(p=>new{value=p.Value,text=p.Text})));
+
+function addLine(data){
+    data=data||{};
+    var idx=document.querySelectorAll('[id^="line_"]').length;
+    var opts=productList.map(function(p){
+        return '<option value="'+p.value+'" '+(data.productId===p.value?'selected':'')+'>'+p.text+'</option>';
+    }).join('');
+    var html='<div class="line-row d-flex gap-2 align-items-start flex-wrap flex-md-nowrap" id="line_'+idx+'">'
+        +'<div style="flex:3;min-width:150px">'
+        +'<input type="text" class="form-control form-control-sm desc" placeholder="Item description…" value="'+(data.description||'')+'">'
+        +(productList.length?'<select class="form-select form-select-sm mt-1 product-sel" onchange="fillProduct('+idx+',this)"><option value="">— product —</option>'+opts+'</select>':'')
+        +'</div>'
+        +'<input type="number" class="form-control form-control-sm qty" style="width:80px" min="0.01" step="0.01" value="'+(data.quantity||1)+'" oninput="recalcLine('+idx+')">'
+        +'<input type="number" class="form-control form-control-sm price" style="width:120px" min="0" step="0.01" value="'+(data.unitPrice||0)+'" oninput="recalcLine('+idx+')">'
+        +'<input type="number" class="form-control form-control-sm amt bg-light" style="width:120px" readonly value="'+(data.amount||0)+'">'
+        +'<button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0" onclick="this.closest(\'[id^=line_]\').remove();recalc()"><i class="bi bi-x-lg"></i></button>'
+        +'</div>';
+    document.getElementById('lineItems').insertAdjacentHTML('beforeend',html);
+    recalc();
+}
+
+function fillProduct(idx,sel){
+    var row=document.getElementById('line_'+idx);
+    var p=productList.find(function(x){return x.value===sel.value;});
+    if(!p) return;
+    row.querySelector('.desc').value=p.text.split('(')[0].trim();
+    row.querySelector('.price').value=parseFloat(p.text.match(/\(([^)]+)\)/)?.[1])||0;
+    recalcLine(idx);
+}
+
+function recalcLine(idx){
+    var row=document.getElementById('line_'+idx);
+    if(!row) return;
+    var amt=(parseFloat(row.querySelector('.qty').value)||0)*(parseFloat(row.querySelector('.price').value)||0);
+    row.querySelector('.amt').value=amt.toFixed(2);
+    recalc();
+}
+
+function recalc(){
+    var sub=0; document.querySelectorAll('.amt').forEach(function(el){sub+=parseFloat(el.value)||0;});
+    var tax=sub*(parseFloat(document.getElementById('taxRate').value)||0)/100;
+    var disc=parseFloat(document.getElementById('discount').value)||0;
+    document.getElementById('tSubtotal').textContent='₹'+sub.toFixed(2);
+    document.getElementById('tTax').textContent='₹'+tax.toFixed(2);
+    document.getElementById('tDiscount').textContent='-₹'+disc.toFixed(2);
+    document.getElementById('tTotal').textContent='₹'+(sub+tax-disc).toFixed(2);
+}
+
+function saveSale(){
+    var items=[];
+    document.querySelectorAll('[id^="line_"]').forEach(function(row){
+        var desc=row.querySelector('.desc').value.trim();
+        if(!desc) return;
+        var sel=row.querySelector('.product-sel');
+        items.push({productId:sel?sel.value||null:null,description:desc,
+            quantity:parseFloat(row.querySelector('.qty').value)||1,
+            unitPrice:parseFloat(row.querySelector('.price').value)||0,
+            taxRate:parseFloat(document.getElementById('taxRate').value)||0,
+            amount:parseFloat(row.querySelector('.amt').value)||0});
+    });
+    if(!items.length){toastError('Add at least one item.');return;}
+    var $btn=$('#btnSave').prop('disabled',true).html('<span class="spinner-border spinner-border-sm"></span>');
+    ajaxPost('/Sale/Save',{
+        clientId:document.getElementById('clientId').value||null,
+        saleDate:document.getElementById('saleDate').value,
+        taxRate:parseFloat(document.getElementById('taxRate').value)||0,
+        discount:parseFloat(document.getElementById('discount').value)||0,
+        paymentMethod:document.getElementById('payMethod').value||null,
+        notes:document.getElementById('notes').value.trim()||null,
+        items:items
+    },$btn).done(function(res){
+        $btn.prop('disabled',false).html('<i class="bi bi-check-lg me-1"></i> Save Sale');
+        if(res.success){toastSuccess(res.message);setTimeout(function(){window.location='/Sale/Detail/'+res.data.id;},800);}
+        else toastError(res.message);
+    });
+}
+
+addLine();
+</script>
+}

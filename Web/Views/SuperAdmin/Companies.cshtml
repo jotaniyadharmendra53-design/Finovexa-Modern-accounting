@@ -1,0 +1,634 @@
+﻿@model IEnumerable<InvoiceSaaS.Application.DTOs.Companies.CompanyDto>
+@{
+    ViewData["Title"]  = "Companies";
+    ViewBag.ActiveMenu = "companies";
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+}
+
+@section Styles {
+<style>
+.co-avatar {
+    width:38px;height:38px;border-radius:10px;
+    background:linear-gradient(135deg,#4F46E5,#7C3AED);
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;font-size:.9rem;flex-shrink:0;
+}
+.status-pill {
+    display:inline-flex;align-items:center;gap:5px;
+    padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;
+}
+.pill-active   { background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0; }
+.pill-inactive { background:#FEF2F2;color:#991B1B;border:1px solid #FECACA; }
+</style>
+}
+
+<!-- Header -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Companies</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item active">Companies</li>
+        </ol></nav>
+    </div>
+    @if(isSA){
+    <button type="button" class="btn btn-primary" onclick="openCreateModal()">
+        <i class="bi bi-plus-lg me-1"></i>New Company
+    </button>
+    }
+</div>
+
+<!-- Filter bar -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-3 px-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0">
+                        <i class="bi bi-search text-muted"></i>
+                    </span>
+                    <input type="text" class="form-control border-start-0"
+                           id="coSearch" placeholder="Search company name or email…"
+                           oninput="filterTable()"/>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="coStatus" onchange="filterTable()">
+                    <option value="">All statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+            <div class="col-auto ms-auto">
+                <span class="text-muted fs-13">
+                    <span id="coCount">@Model.Count()</span> companies
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table card -->
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Company</th>
+                    @* <th>Email</th> *@
+                    <th>Admin Email</th>
+                    <th>Currency</th>
+                    <th>Status</th>
+                    @if(isSA){ <th class="text-end pe-3">Actions</th> }
+                </tr>
+            </thead>
+            <tbody id="coBody">
+            @foreach(var c in Model){
+            <tr id="coRow_@c.Id"
+                data-name="@c.Name.ToLower()"
+                @* data-email="@(c.Email?.ToLower() ?? "")" *@
+                data-email="@(c.AdminEmail?.ToLower() ?? "")"
+                data-company-email="@(c.Email?.ToLower() ?? "")"
+                data-admin-name="@(c.AdminFullName ?? "")"
+                data-admin-email="@(c.AdminEmail ?? "")"
+                data-status="@(c.IsActive ? "active" : "inactive")"
+                data-phone="@(c.Phone ?? "")"
+                data-website="@(c.Website ?? "")"
+                data-address="@(c.Address ?? "")"
+                data-currency="@c.CurrencyCode">
+                <td>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="co-avatar">@c.Name[0].ToString().ToUpper()</div>
+                        <div>
+                            <div class="fw-600 fs-13">@c.Name</div>
+                            @if(!string.IsNullOrEmpty(c.Phone)){
+                            <div class="text-muted fs-12">@c.Phone</div>
+                            }
+                        </div>
+                    </div>
+                </td>
+                @*<td class="text-muted fs-13">@(c.Email ?? "—")</td> *@
+                    <td class="text-muted fs-13">@(c.AdminEmail ?? "—")</td>
+                <td class="text-muted fs-13">@c.CurrencyCode</td>
+                <td>
+                    <span class="status-pill @(c.IsActive ? "pill-active" : "pill-inactive")">
+                        <i class="bi @(c.IsActive ? "bi-check-circle-fill" : "bi-x-circle-fill")"
+                           style="font-size:.7rem;"></i>
+                        @(c.IsActive ? "Active" : "Inactive")
+                    </span>
+                </td>
+                @if(isSA){
+                <td class="text-end pe-3">
+                    <!-- Edit -->
+                    <button type="button" class="btn btn-outline-primary"
+                            title="Edit"
+                            onclick="openEditModal('@c.Id')">
+                        @* <i class="bi bi-pencil"></i> *@
+                          <i class="bi bi-pencil"></i>
+                    </button>
+                    <!-- Toggle Active / Inactive -->
+                    <button type="button" class="btn btn-outline-warning @(c.IsActive ? "btn-outline-warning" : "btn-outline-success") me-1"
+                            title="@(c.IsActive ? "Deactivate" : "Activate")"
+                            onclick="toggleActive('@c.Id')">
+                        <i class="bi @(c.IsActive ? "bi-pause-circle" : "bi-play-circle")"></i>
+                    </button>
+                    <!-- Delete -->
+                    <button type="button" class="btn btn-outline-danger"
+                            title="Delete"
+                            onclick="deleteCompany('@c.Id')">
+                        @* <i class="bi bi-trash3"></i> *@
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+                }
+            </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @if(!Model.Any()){
+    <div class="text-center py-5">
+        <i class="bi bi-buildings display-4 text-muted opacity-50"></i>
+        <h6 class="mt-3">No companies yet</h6>
+        <p class="text-muted fs-13">Create the first company to get started.</p>
+        <button class="btn btn-primary btn-sm" onclick="openCreateModal()">
+            <i class="bi bi-plus-lg me-1"></i>New Company
+        </button>
+    </div>
+    }
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     CREATE MODAL
+════════════════════════════════════════════════════ -->
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-600">
+                    <i class="bi bi-buildings me-2 text-primary"></i>New Company
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="text-muted small mb-3">
+                    Creates the company, Admin role, Admin user, and first fiscal year automatically.
+                </p>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="fw-600 fs-13 mb-1 pb-1 border-bottom text-muted">
+                            Company Details
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Company Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="coName" maxlength="200" autocomplete="off"/>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Company Email</label>
+                        <input type="email" class="form-control" id="coEmail"autocomplete="off"/>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" id="coPhone"/>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Currency</label>
+                        <select class="form-select" id="coCurrency">
+                            @* @foreach(var cur in new[]{"INR","USD","EUR","GBP","AUD","CAD","SGD","AED","JPY","CNY"}){
+                            <option value="@cur" @(cur=="INR"?"selected":"")>@cur</option>
+                            } *@
+                             @foreach (var cur in new[] { "INR","USD","EUR","GBP","AUD","CAD","SGD","AED","JPY","CNY" })
+                                 {
+                                       if (cur == "INR")
+                                       {
+                                            <option value="@cur" selected>@cur</option>
+                                       }
+                                       else
+                                       {
+                                            <option value="@cur">@cur</option>
+                                 }
+                              }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Fiscal Year Start</label>
+                        <select class="form-select" id="coFYMonth">
+                            @* @{ var months = new[]{"January","February","March","April","May","June","July","August","September","October","November","December"};
+                               for(int m=1;m<=12;m++){
+                            <option value="@m" @(m==4?"selected":"")>@months[m-1]</option>
+                               }} *@
+                                 @{
+        var months = new[]
+        {
+            "January","February","March","April","May","June",
+            "July","August","September","October","November","December"
+        };
+
+        for (int m = 1; m <= 12; m++)
+        {
+            if (m == 4)
+            {
+                <option value="@m" selected>@months[m - 1]</option>
+            }
+            else
+            {
+                <option value="@m">@months[m - 1]</option>
+            }
+        }
+    }
+                        </select>
+                    </div>
+                    <div class="col-12 mt-1">
+                        <div class="fw-600 fs-13 mb-1 pb-1 border-bottom text-muted">
+                            Admin User
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Admin Full Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="adminName" autocomplete="off"/>
+                    </div>
+                    @* <div class="col-md-6">
+                        <label class="form-label">Admin Email <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="adminEmail" autocomplete="off"/>
+                        <div id="adminEmailError" class="invalid-feedback" style="display:none;"></div>
+                    </div> *@
+                    <div class="col-md-6">
+    <label class="form-label">Admin Email <span class="text-danger">*</span></label>
+    <input type="email" class="form-control" id="adminEmail" autocomplete="off"/>
+    <div id="adminEmailError" class="text-danger small mt-1" style="display:none;"></div>
+</div>
+                    <div class="col-md-6">
+                        <label class="form-label">Admin Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="adminPassword" autocomplete="new-password"/>
+                            <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('adminPassword','eyeCreate')">
+                                <i class="bi bi-eye" id="eyeCreate"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button" onclick="genPassword('adminPassword','eyeCreate')">
+                                <i class="bi bi-shuffle"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Admin Phone</label>
+                        <input type="tel" class="form-control" id="adminPhone"autocomplete="off"/>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="sendWelcome" checked>
+                            <label class="form-check-label small" for="sendWelcome">
+                                Send welcome email with credentials
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div id="provisionResult" class="alert mt-3 border-0" style="display:none;"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary px-4" id="btnCreate" onclick="createCompany()">
+                    <i class="bi bi-buildings me-1"></i>Create Company
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     EDIT MODAL
+════════════════════════════════════════════════════ -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-600">
+                    <i class="bi bi-pencil me-2 text-primary"></i>Edit Company
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <input type="hidden" id="editId"/>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Company Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="editName" maxlength="200" autocomplete="off"/>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Company Email</label>
+                        <input type="email" class="form-control" id="editEmail" autocomplete="off"/>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Phone</label>
+                        <input type="tel" class="form-control" id="editPhone"/>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Website</label>
+                        <input type="url" class="form-control" id="editWebsite"/>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Currency</label>
+                        <select class="form-select" id="editCurrency">
+                            @foreach(var cur in new[]{"INR","USD","EUR","GBP","AUD","CAD","SGD","AED","JPY","CNY"}){
+                            <option value="@cur">@cur</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Address</label>
+                        <input type="text" class="form-control" id="editAddress"/>
+                    </div>
+                    <!-- ✅ ADD THESE TWO FIELDS -->
+                    <div class="col-12 mt-1">
+                        <div class="fw-600 fs-13 mb-1 pb-1 border-bottom text-muted">
+                            Admin User
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Admin Full Name</label>
+                        <input type="text" class="form-control bg-light"
+                               id="editAdminName"/>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Admin Email</label>
+                        <input type="email" class="form-control bg-light"
+                               id="editAdminEmail"/>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary px-4" id="btnEdit" onclick="saveEdit()">
+                    <i class="bi bi-check-lg me-1"></i>Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+var _createModal = new bootstrap.Modal(document.getElementById('createModal'));
+var _editModal   = new bootstrap.Modal(document.getElementById('editModal'));
+
+// Clear field validation when user edits the admin email
+var _adminEmailEl = document.getElementById('adminEmail');
+if(_adminEmailEl){
+    _adminEmailEl.addEventListener('input', function(){
+        this.classList.remove('is-invalid');
+        var aeErr = document.getElementById('adminEmailError');
+        if(aeErr){ aeErr.style.display = 'none'; aeErr.textContent = ''; }
+    });
+}
+
+// ── FILTER ────────────────────────────────────────────────────
+function filterTable(){
+    var search = (document.getElementById('coSearch').value || '').toLowerCase().trim();
+    var status = document.getElementById('coStatus').value;
+    var n = 0;
+    document.querySelectorAll('#coBody tr').forEach(function(row){
+        var name   = (row.dataset.name  || '');
+        var email  = (row.dataset.email || '');
+        var st     = (row.dataset.status || '');
+        var okName = !search || name.includes(search) || email.includes(search);
+        var okSt   = !status || st === status;
+        var show   = okName && okSt;
+        row.style.display = show ? '' : 'none';
+        if(show) n++;
+    });
+    document.getElementById('coCount').textContent = n;
+}
+
+// ── PASSWORD HELPERS ──────────────────────────────────────────
+function togglePwd(inputId, iconId){
+    var inp = document.getElementById(inputId);
+    var ico = document.getElementById(iconId);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    ico.className = inp.type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
+}
+function genPassword(inputId, iconId){
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@@#$';
+    var pwd = '';
+    for(var i=0;i<12;i++) pwd += chars[Math.floor(Math.random()*chars.length)];
+    document.getElementById(inputId).value = pwd;
+    document.getElementById(inputId).type  = 'text';
+    document.getElementById(iconId).className = 'bi bi-eye-slash';
+}
+
+// ── CREATE ────────────────────────────────────────────────────
+function openCreateModal(){
+    document.getElementById('provisionResult').style.display = 'none';
+    ['coName','coEmail','coPhone','adminName','adminEmail','adminPassword','adminPhone']
+        .forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+    // clear validation states
+    var ae = document.getElementById('adminEmail');
+    if(ae){ ae.classList.remove('is-invalid'); }
+    var aeErr = document.getElementById('adminEmailError');
+    if(aeErr){ aeErr.style.display = 'none'; aeErr.textContent = ''; }
+    _createModal.show();
+}
+
+function createCompany(){
+    var name  = document.getElementById('coName').value.trim();
+    var aEmail= document.getElementById('adminEmail').value.trim();
+    var aPwd  = document.getElementById('adminPassword').value;
+    if(!name)  { toastError('Company name is required.'); return; }
+    if(!aEmail){ toastError('Admin email is required.');  return; }
+    if(!aPwd || aPwd.length < 6){ toastError('Password must be at least 6 characters.'); return; }
+
+    var dto = {
+        companyName:      name,
+        companyEmail:     document.getElementById('coEmail').value.trim() || null,
+        companyPhone:     document.getElementById('coPhone').value.trim() || null,
+        currencyCode:     document.getElementById('coCurrency').value,
+        fiscalStartMonth: parseInt(document.getElementById('coFYMonth').value),
+        adminFullName:    document.getElementById('adminName').value.trim() || aEmail.split('@@')[0],
+        adminEmail:       aEmail,
+        adminPassword:    aPwd,
+        adminPhone:       document.getElementById('adminPhone').value.trim() || null,
+        sendWelcomeEmail: document.getElementById('sendWelcome').checked
+    };
+
+    var $btn = $('#btnCreate').prop('disabled',true)
+        .html('<span class="spinner-border spinner-border-sm me-1"></span>Provisioning…');
+
+    $.ajax({ url:'/SuperAdmin/Company/Create', type:'POST',
+             contentType:'application/json', data:JSON.stringify(dto) })
+    .done(function(res){
+        $btn.prop('disabled',false).html('<i class="bi bi-buildings me-1"></i>Create Company');
+        if(res.success){
+            var d = res.data;
+            var panel = document.getElementById('provisionResult');
+            panel.innerHTML = '<div class="d-flex gap-2"><i class="bi bi-check-circle-fill text-success mt-1"></i>'
+                + '<div><strong>Provisioned!</strong><br><small>'
+                + '<b>Company:</b> ' + d.companyName + '<br>'
+                + '<b>Admin:</b> '   + d.adminEmail  + '<br>'
+                + '<b>FY:</b> '      + d.fiscalYearLabel
+                + '</small></div></div>';
+            panel.style.display   = 'block';
+            panel.style.background= '#ECFDF5';
+            panel.style.borderLeft= '4px solid #10B981';
+            setTimeout(function(){ location.reload(); }, 2200);
+        } else {
+            // If server returned a validation error about admin email already existing,
+            // show inline validation next to the Admin Email field.
+  // if(err && err.toLowerCase().includes('user with email')){
+            // Prefer specific validation errors returned in res.errors over the generic res.message
+            var err = (res.errors && res.errors.length && res.errors[0]) || res.message || '';
+if(err && (err.toLowerCase().includes('admin email') || err.toLowerCase().includes('user with email'))){
+                var ae = document.getElementById('adminEmail');
+                var aeErr = document.getElementById('adminEmailError');
+                if(ae){ ae.classList.add('is-invalid'); }
+                if(aeErr){ aeErr.textContent = err; aeErr.style.display = 'block'; }
+                // also focus the field for convenience
+                if(ae) ae.focus();
+            } else {
+                toastError(err || 'Failed.');
+            }
+        }
+    })
+    .fail(function(){
+        $btn.prop('disabled',false).html('<i class="bi bi-buildings me-1"></i>Create Company');
+        toastError('Server error. Please try again.');
+    });
+}
+
+// ── EDIT ──────────────────────────────────────────────────────
+function openEditModal(id){
+    var row = document.getElementById('coRow_' + id);
+    if(!row) return;
+    // reset any active filters so user can see the selected row (prevents search from hiding it)
+    document.getElementById('coSearch').value = '';
+    document.getElementById('coStatus').value = '';
+    filterTable();
+
+    var name     = row.dataset.name || '';
+    // var email    = row.dataset.email || '';
+    var email    = row.dataset.companyEmail || '';
+    var phone    = row.dataset.phone || '';
+    var website  = row.dataset.website || '';
+    var address  = row.dataset.address || '';
+    var currency = row.dataset.currency || '';
+    var adminName  = row.dataset.adminName  || '';   // ✅ ADD
+    var adminEmail = row.dataset.adminEmail || ''; 
+
+    document.getElementById('editId').value       = id;
+    document.getElementById('editName').value     = name;
+    document.getElementById('editEmail').value    = email;
+    document.getElementById('editPhone').value    = phone;
+    document.getElementById('editWebsite').value  = website;
+    document.getElementById('editAddress').value  = address;
+    document.getElementById('editAdminName').value  = adminName;   // ✅ ADD 
+    document.getElementById('editAdminEmail').value = adminEmail; 
+    var sel = document.getElementById('editCurrency');
+    for(var i=0; i<sel.options.length; i++){
+        sel.options[i].selected = (sel.options[i].value === currency);
+    }
+    _editModal.show();
+}
+
+function saveEdit(){
+    var name = document.getElementById('editName').value.trim();
+    if(!name){ toastError('Company name is required.'); return; }
+
+    var dto = {
+        id:          document.getElementById('editId').value,
+        name:        name,
+        email:       document.getElementById('editEmail').value.trim()   || null,
+        phone:       document.getElementById('editPhone').value.trim()   || null,
+        website:     document.getElementById('editWebsite').value.trim() || null,
+        address:     document.getElementById('editAddress').value.trim() || null,
+        currencyCode:document.getElementById('editCurrency').value,
+        adminFullName: document.getElementById('editAdminName').value.trim()  || null,  // ✅
+        adminEmail:    document.getElementById('editAdminEmail').value.trim() || null   // ✅
+    };
+
+    var $btn = $('#btnEdit').prop('disabled',true)
+        .html('<span class="spinner-border spinner-border-sm me-1"></span>Saving…');
+
+    $.ajax({ url:'/SuperAdmin/Company/Edit', type:'POST',
+             contentType:'application/json', data:JSON.stringify(dto) })
+    .done(function(res){
+        $btn.prop('disabled',false).html('<i class="bi bi-check-lg me-1"></i>Save Changes');
+        if(res.success){
+            toastSuccess(res.message || 'Company updated.');
+            _editModal.hide();
+            setTimeout(function(){ location.reload(); }, 700);
+        } else {
+            toastError(res.message || (res.errors && res.errors[0]) || 'Update failed.');
+        }
+    })
+    .fail(function(){
+        $btn.prop('disabled',false).html('<i class="bi bi-check-lg me-1"></i>Save Changes');
+        toastError('Server error. Please try again.');
+    });
+}
+
+// ── TOGGLE ACTIVE / INACTIVE ──────────────────────────────────
+function toggleActive(id){
+    var row = document.getElementById('coRow_' + id);
+    if(!row) return;
+    var name = row.dataset.name || '';
+    var isActive = (row.dataset.status === 'active');
+    var action = isActive ? 'deactivate' : 'activate';
+    Swal.fire({
+        icon: 'warning',
+        title: (isActive ? 'Deactivate' : 'Activate') + ' company?',
+        html: '<b>' + name + '</b> will be ' + action + 'd.<br>'
+            + (isActive
+               ? '<small class="text-danger">All users of this company will be blocked from logging in.</small>'
+               : '<small class="text-success">Users of this company can log in again.</small>'),
+        showCancelButton: true,
+        confirmButtonColor: isActive ? '#EF4444' : '#10B981',
+        confirmButtonText:  'Yes, ' + action
+    }).then(function(r){
+        if(!r.isConfirmed) return;
+        $.ajax({ url:'/SuperAdmin/Company/ToggleActive', type:'POST',
+                 contentType:'application/json', data:JSON.stringify({id:id}) })
+        .done(function(res){
+            if(res.success){ toastSuccess(res.message); setTimeout(function(){ location.reload(); },700); }
+            else toastError(res.message);
+        });
+    });
+}
+
+// ── DELETE ────────────────────────────────────────────────────
+function deleteCompany(id){
+    var row = document.getElementById('coRow_' + id);
+    if(!row) return;
+    var name = row.dataset.name || '';
+    Swal.fire({
+        icon: 'error',
+        title: 'Delete company?',
+        html: 'This will permanently delete <b>' + name + '</b> and all its data.<br>'
+            + '<small class="text-danger">This action cannot be undone.</small>',
+        showCancelButton: true,
+        confirmButtonColor: '#EF4444',
+        confirmButtonText: 'Yes, delete',
+        input: 'text',
+        inputPlaceholder: 'Type company name to confirm',
+        preConfirm: function(val){
+            if(val !== name){
+                Swal.showValidationMessage('Company name does not match.');
+            }
+        }
+    }).then(function(r){
+        if(!r.isConfirmed) return;
+        $.ajax({ url:'/SuperAdmin/Company/Delete', type:'POST',
+                 contentType:'application/json', data:JSON.stringify({id:id}) })
+        .done(function(res){
+            if(res.success){
+                toastSuccess(res.message);
+                var row = document.getElementById('coRow_' + id);
+                if(row) row.remove();
+                var cnt = document.querySelectorAll('#coBody tr:not([style*="none"])').length;
+                document.getElementById('coCount').textContent = cnt;
+            } else {
+                toastError(res.message);
+            }
+        });
+    });
+}
+</script>
+}

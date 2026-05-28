@@ -1,0 +1,213 @@
+﻿@model SaleDto
+@{
+    var perms = ViewBag.Permissions as HashSet<string> ?? new HashSet<string>();
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    bool Can(string c) => isSA || perms.Contains(c);
+    ViewData["Title"] = Model.SaleNumber;
+    ViewBag.ActiveMenu = "sales";
+
+    var badge = Model.Status switch
+    {
+        0 => ("bg-secondary", "Draft"),
+        1 => ("bg-success", "Completed"),
+        2 => ("bg-danger", "Refunded"),
+        _ => ("bg-secondary", "Unknown")
+    };
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+        <h4 class="mb-1">
+            @Model.SaleNumber
+            <span class="badge @badge.Item1 ms-2">@badge.Item2</span>
+        </h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="/Sale">Sales</a></li>
+                <li class="breadcrumb-item active">@Model.SaleNumber</li>
+            </ol>
+        </nav>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        @if (Model.Status == 1 && Can("sales.refund"))
+        {
+            <button class="btn btn-outline-warning" onclick="refundSale()">
+                <i class="bi bi-arrow-counterclockwise me-1"></i>Refund
+            </button>
+        }
+        @if (Model.Status == 0 && Can("sales.delete"))
+        {
+            <button class="btn btn-outline-danger" onclick="deleteSale()">
+                <i class="bi bi-trash me-1"></i>Delete
+            </button>
+        }
+        <a href="/Sale" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left: Sale document -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4">
+                <!-- Header -->
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div>
+                        <div class="text-muted small fw-600 text-uppercase" style="letter-spacing:.06em">Sale Receipt</div>
+                        <h5 class="fw-700 mb-0 mt-1">@Model.SaleNumber</h5>
+                    </div>
+                    <div class="text-end">
+                        <div class="fs-3 fw-700 text-success">₹@Model.Total.ToString("N2")</div>
+                        <div class="text-muted small">@Model.SaleDate.ToString("dd MMM yyyy")</div>
+                    </div>
+                </div>
+
+                <!-- Client + Payment -->
+                <div class="row mb-4">
+                    <div class="col-6">
+                        <div class="text-muted small fw-600 text-uppercase mb-1" style="letter-spacing:.06em">Client</div>
+                        @if (!string.IsNullOrEmpty(Model.ClientName))
+                        {
+                            <div class="fw-600">@Model.ClientName</div>
+                        }
+                        else
+                        {
+                            <div class="text-muted">Walk-in customer</div>
+                        }
+                    </div>
+                    <div class="col-6">
+                        <div class="text-muted small fw-600 text-uppercase mb-1" style="letter-spacing:.06em">Payment Method</div>
+                        <div class="fw-600">@(Model.PaymentMethod ?? "—")</div>
+                    </div>
+                </div>
+
+                <!-- Line items -->
+                <table class="table table-sm mb-3">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Description</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items.OrderBy(i => i.SortOrder))
+                        {
+                            <tr>
+                                <td>@item.Description</td>
+                                <td class="text-end">@item.Quantity</td>
+                                <td class="text-end">₹@item.UnitPrice.ToString("N2")</td>
+                                <td class="text-end fw-600">₹@item.Amount.ToString("N2")</td>
+                            </tr>
+                        }
+                        @if (!Model.Items.Any())
+                        {
+                            <tr><td colspan="4" class="text-muted text-center py-3">No items</td></tr>
+                        }
+                    </tbody>
+                </table>
+
+                <!-- Totals -->
+                <div class="d-flex justify-content-end">
+                    <table style="min-width:240px">
+                        <tr>
+                            <td class="text-muted pe-4 py-1">Subtotal</td>
+                            <td class="text-end">₹@Model.SubTotal.ToString("N2")</td>
+                        </tr>
+                        @if (Model.TaxAmount > 0)
+                        {
+                            <tr>
+                                <td class="text-muted pe-4 py-1">Tax</td>
+                                <td class="text-end">₹@Model.TaxAmount.ToString("N2")</td>
+                            </tr>
+                        }
+                        @if (Model.Discount > 0)
+                        {
+                            <tr>
+                                <td class="text-muted pe-4 py-1">Discount</td>
+                                <td class="text-end text-success">-₹@Model.Discount.ToString("N2")</td>
+                            </tr>
+                        }
+                        <tr style="border-top:2px solid #E5E7EB">
+                            <td class="fw-700 pe-4 pt-2">Total</td>
+                            <td class="fw-700 text-success pt-2 text-end fs-5">₹@Model.Total.ToString("N2")</td>
+                        </tr>
+                    </table>
+                </div>
+
+                @if (!string.IsNullOrEmpty(Model.Notes))
+                {
+                    <hr class="mt-4">
+                    <div class="text-muted small"><strong>Notes:</strong> @Model.Notes</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Details -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h6 class="fw-600 mb-3">Sale Details</h6>
+                <dl class="row mb-0 small">
+                    <dt class="col-5 text-muted">Sale #</dt>
+                    <dd class="col-7 fw-600">@Model.SaleNumber</dd>
+
+                    <dt class="col-5 text-muted">Date</dt>
+                    <dd class="col-7">@Model.SaleDate.ToString("dd MMM yyyy")</dd>
+
+                    <dt class="col-5 text-muted">Status</dt>
+                    <dd class="col-7"><span class="badge @badge.Item1">@badge.Item2</span></dd>
+
+                    <dt class="col-5 text-muted">Client</dt>
+                    <dd class="col-7">@(Model.ClientName ?? "Walk-in")</dd>
+
+                    <dt class="col-5 text-muted">Payment</dt>
+                    <dd class="col-7">@(Model.PaymentMethod ?? "—")</dd>
+
+                    <dt class="col-5 text-muted">Items</dt>
+                    <dd class="col-7">@Model.Items.Count</dd>
+
+                    <dt class="col-5 text-muted">Total</dt>
+                    <dd class="col-7 fw-700 text-success">₹@Model.Total.ToString("N2")</dd>
+
+                    <dt class="col-5 text-muted">Created</dt>
+                    <dd class="col-7">@Model.CreatedAt.ToString("dd MMM yyyy")</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function refundSale(){
+            Swal.fire({
+                icon:'warning', title:'Refund this sale?',
+                html:'Sale <b>@Model.SaleNumber</b> will be marked as refunded.',
+                confirmButtonText:'Yes, refund', confirmButtonColor:'#D97706',
+                showCancelButton:true
+            }).then(function(r){
+                if(!r.isConfirmed) return;
+                ajaxPost('/Sale/Refund?id=@Model.Id',{}).done(function(res){
+                    if(res.success){ toastSuccess(res.message); setTimeout(()=>location.reload(),800); }
+                    else toastError(res.message);
+                });
+            });
+        }
+
+        function deleteSale(){
+            confirmDelete({title:'Delete sale?', text:'@Model.SaleNumber'}).then(function(r){
+                if(!r.isConfirmed) return;
+                ajaxPost('/Sale/Delete?id=@Model.Id',{}).done(function(res){
+                    if(res.success){ toastSuccess(res.message); setTimeout(()=>window.location='/Sale',800); }
+                    else toastError(res.message);
+                });
+            });
+        }
+    </script>
+}

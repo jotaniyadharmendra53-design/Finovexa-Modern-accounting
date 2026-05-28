@@ -1,0 +1,269 @@
+﻿@model IEnumerable<SaleDto>
+@{
+    var perms = ViewBag.Permissions as HashSet<string> ?? new HashSet<string>();
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    bool Can(string c) => isSA || perms.Contains(c); ViewData["Title"] = "Sales"; ViewBag.ActiveMenu = "sales";
+    int currentPage = (int)(ViewBag.Page ?? 1);
+    int pageSize = (int)(ViewBag.PageSize ?? 20);
+    int totalCount = (int)(ViewBag.TotalCount ?? 0);
+    int totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var activeSearch = ViewBag.Search ?? "";
+    var activeStatus = ViewBag.Status ?? "";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h4 class="mb-1">Sales</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item active">Sales</li>
+        </ol></nav>
+    </div>
+    @if(Can("sales.create")){
+    <a href="/Sale/Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> New Sale
+    </a>
+    }
+</div>
+
+<!-- Summary -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Total Sales</div>
+                <div class="fw-700 fs-4">₹@Model.Sum(s=>s.Total).ToString("N2")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Completed</div>
+                <div class="fw-700 fs-4 text-success">@Model.Count(s=>s.Status==1)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Refunded</div>
+                <div class="fw-700 fs-4 text-danger">@Model.Count(s=>s.Status==2)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3 d-flex gap-2">
+        <div class="input-group input-group-sm" style="max-width:260px">
+            <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Search…" value="@activeSearch" oninput="filterTable()">
+        </div>
+        <select id="filterStatus" class="form-select form-select-sm" style="max-width:150px" onchange="filterTable()">
+            <option value="">All status</option>
+            <option>Draft</option><option>Completed</option><option>Refunded</option>
+        </select>
+    </div>
+</div>
+
+<div id="salesListCard" class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Sale #</th>
+                        <th>Date</th>
+                        <th>Client</th>
+                        <th>Payment Method</th>
+                        <th>Status</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                @* @foreach(var s in Model){
+                @{
+                    var badge = s.Status switch {
+                        0     => "bg-secondary-subtle text-secondary",
+                        1 => "bg-success-subtle text-success",
+                        2  => "bg-danger-subtle text-danger",
+                        _ => "bg-secondary-subtle text-secondary"
+                    };
+                } *@
+                        @foreach (var s in Model)
+                        {
+                            var badge = s.Status switch
+                            {
+                                0 => "bg-secondary-subtle text-secondary",
+                                1 => "bg-success-subtle text-success",
+                                2 => "bg-danger-subtle text-danger",
+                                _ => "bg-secondary-subtle text-secondary"
+                            };
+                <tr data-status="@s.StatusName">
+                    <td><a href="/Sale/Detail/@s.Id" class="fw-600 text-primary text-decoration-none">@s.SaleNumber</a></td>
+                    <td class="small text-muted">@s.SaleDate.ToString("dd MMM yyyy")</td>
+                    <td>@(string.IsNullOrEmpty(s.ClientName)?"—":s.ClientName)</td>
+                    <td class="small text-muted">@(s.PaymentMethod ?? "—")</td>
+                    <td><span class="badge @badge">@s.StatusName</span></td>
+                    <td class="text-end fw-600">₹@s.Total.ToString("N2")</td>
+                    <td class="text-end">
+                        <div class="btn-group btn-group-sm">
+                                    <a href="/Sale/Detail/@s.Id" class="btn btn-outline-warning"><i class="bi bi-eye"></i></a>
+                            @if(Can("sales.delete") && s.Status == 0){
+                            <button class="btn btn-outline-danger"  onclick="deleteSale('@s.Id','@s.SaleNumber')"><i class="bi bi-trash"></i></button>
+                            }
+                        </div>
+                    </td>
+                </tr>
+                }
+                @if(!Model.Any()){
+                <tr><td colspan="7" class="text-center text-muted py-5">
+                    <i class="bi bi-cart-check fs-2 d-block mb-2 opacity-25"></i>
+                    No sales recorded yet.
+                </td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* Pagination *@
+    @if (totalPages > 0)
+    {
+        <div class="card-footer bg-transparent border-top d-flex align-items-center justify-content-between px-3 py-2">
+            <span class="text-muted small">
+                Showing @((currentPage - 1) * pageSize + 1)–@(Math.Min(currentPage * pageSize, totalCount)) of @totalCount sales
+            </span>
+            <nav>
+                <ul class="pagination pagination-sm mb-0 gap-1">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage - 1, activeSearch, activeStatus, pageSize)">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    @{
+                        int start = Math.Max(1, currentPage - 2);
+                        int end   = Math.Min(totalPages, start + 4);
+                        start     = Math.Max(1, end - 4);
+                    }
+                    @if (start > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(1, activeSearch, activeStatus, pageSize)">1</a>
+                        </li>
+                        @if (start > 2)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                    }
+                    @for (int pg = start; pg <= end; pg++)
+                    {
+                        <li class="page-item @(pg == currentPage ? "active" : "")">
+                            <a class="page-link rounded" href="@BuildUrl(pg, activeSearch, activeStatus, pageSize)">@pg</a>
+                        </li>
+                    }
+                    @if (end < totalPages)
+                    {
+                        @if (end < totalPages - 1)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(totalPages, activeSearch, activeStatus, pageSize)">@totalPages</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage + 1, activeSearch, activeStatus, pageSize)">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Per page:</span>
+                <select class="form-select form-select-sm" style="width:70px" id="pageSizeSelect">
+                    @foreach (var ps in new[] { 10, 20, 50, 100 })
+                    {
+                        if (ps == pageSize)
+                        {
+                            <option value="@ps" selected="selected">@ps</option>
+                        }
+                        else
+                        {
+                            <option value="@ps">@ps</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+    }
+
+@functions {
+    string BuildUrl(int page, string search, string status, int pageSize)
+    {
+        var q = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrEmpty(search)) q.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrEmpty(status)) q.Add($"status={status}");
+        q.Add($"page={page}");
+        q.Add($"pageSize={pageSize}");
+        return "/Sale?" + string.Join("&", q);
+    }
+}
+
+</div>
+
+@section Scripts {
+<script>
+function deleteSale(id,num){
+    confirmDelete({title:'Delete sale?',text:num}).then(function(r){
+        if(!r.isConfirmed) return;
+        ajaxPost('/Sale/Delete?id='+id,{}).done(function(res){
+            if(res.success){ toastSuccess(res.message); setTimeout(()=>location.reload(),700); }
+            else toastError(res.message);
+        });
+    });
+}
+function filterTable(){
+    var q=document.getElementById('searchInput').value.toLowerCase();
+    var st=document.getElementById('filterStatus').value.toLowerCase();
+    document.querySelectorAll('#tbody tr[data-status]').forEach(function(tr){
+        tr.style.display=(tr.textContent.toLowerCase().includes(q)&&(!st||tr.dataset.status.toLowerCase()===st))?'':'none';
+    });
+}
+// AJAX pagination (no full reload)
+function loadSalesFromUrl(url){
+    $.get(url).done(function(html){
+        var tmp = $('<div>').append($.parseHTML(html));
+        var newCard = tmp.find('#salesListCard');
+        if(newCard.length){
+            $('#salesListCard').replaceWith(newCard);
+            setupSalesPaginationHandlers();
+            initSalesHandlers();
+        } else { window.location.href = url; }
+    }).fail(function(){ toastError('Failed to load sales.'); });
+}
+
+function setupSalesPaginationHandlers(){
+    $('#pageSizeSelect').off('change').on('change', function(){
+        var ps = $(this).val();
+        var s = encodeURIComponent($('#searchInput').val()||'');
+        var st = encodeURIComponent($('#filterStatus').val()||'');
+        var url = '/Sale?page=1&pageSize=' + ps + (s? '&search='+s : '') + (st? '&status='+st : '');
+        loadSalesFromUrl(url);
+    });
+    $(document).off('click', '#salesListCard .pagination a').on('click', '#salesListCard .pagination a', function(e){
+        e.preventDefault(); var href=$(this).attr('href'); if(href) loadSalesFromUrl(href);
+    });
+}
+
+function initSalesHandlers(){
+    $('#searchInput').off('input').on('input', filterTable);
+    $('#filterStatus').off('change').on('change', filterTable);
+}
+
+// initialize on load
+setupSalesPaginationHandlers(); initSalesHandlers();
+</script>
+}

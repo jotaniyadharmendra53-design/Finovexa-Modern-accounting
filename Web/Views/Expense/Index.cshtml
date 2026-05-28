@@ -1,0 +1,490 @@
+﻿@model IEnumerable<ExpenseDto>
+@{
+    var perms = ViewBag.Permissions as HashSet<string> ?? new HashSet<string>();
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    bool Can(string c) => isSA || perms.Contains(c);
+    ViewData["Title"] = "Expenses";
+    ViewBag.ActiveMenu = "expenses";
+    int currentPage = (int)(ViewBag.Page ?? 1);
+    int pageSize = (int)(ViewBag.PageSize ?? 20);
+    int totalCount = (int)(ViewBag.TotalCount ?? 0);
+    int totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var activeSearch = ViewBag.Search ?? "";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h4 class="mb-1">Expenses</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item active">Expenses</li>
+            </ol>
+        </nav>
+    </div>
+    @if (Can("expenses.create"))
+    {
+        <button class="btn btn-primary" onclick="openModal()">
+            <i class="bi bi-plus-lg me-1"></i> Record Expense
+        </button>
+    }
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Total Expenses</div>
+                <div class="fw-700 fs-4">₹@Model.Sum(e => e.Total).ToString("N2")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Unpaid</div>
+                <div class="fw-700 fs-4 text-danger">₹@Model.Where(e => e.Status == 0).Sum(e => e.Total).ToString("N2")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Paid</div>
+                <div class="fw-700 fs-4 text-success">₹@Model.Where(e => e.Status == 1).Sum(e => e.Total).ToString("N2")</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3 d-flex gap-2 align-items-center flex-wrap">
+        <div class="input-group input-group-sm" style="max-width:260px">
+            <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Search…" value="@activeSearch" oninput="filterTable()">
+        </div>
+        <select id="filterCat" class="form-select form-select-sm" style="max-width:160px" onchange="filterTable()">
+            <option value="">All categories</option>
+            <option>Rent / Office</option>
+            <option>Salary</option>
+            <option>Utilities</option>
+            <option>Marketing</option>
+            <option>Travel</option>
+            <option>Software</option>
+            <option>Other</option>
+        </select>
+        <select id="filterStatus" class="form-select form-select-sm" style="max-width:130px" onchange="filterTable()">
+            <option value="">All status</option>
+            <option value="Unpaid">Unpaid</option>
+            <option value="Paid">Paid</option>
+        </select>
+    </div>
+</div>
+
+<div id="expListCard" class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle" id="expTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Expense #</th>
+                        <th>Date</th>
+                        <th>Category</th>
+                        <th>Vendor</th>
+                        <th>Description</th>
+                        <th class="text-end">Amount</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                    @foreach (var e in Model)
+                    {
+                        <tr data-category="@e.Category" data-status="@e.StatusName">
+                            <td class="fw-600 text-primary">@e.ExpenseNumber</td>
+                            <td class="text-muted small">@e.ExpenseDate.ToString("dd MMM yyyy")</td>
+                            <td><span class="badge bg-light text-dark border">@e.Category</span></td>
+                            <td class="text-muted small">@(e.VendorName ?? "—")</td>
+                            <td class="text-muted small">@(e.Description != null ? (e.Description.Length > 45 ? e.Description[..45] + "…" : e.Description) : "—")</td>
+                            <td class="text-end fw-600">₹@e.Total.ToString("N2")</td>
+                            <td>
+                                @if (e.Status == 1)
+                                {
+                                    <span class="badge bg-success-subtle text-success">Paid</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger-subtle text-danger">Unpaid</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                @if (Can("expenses.edit"))
+                                {
+                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="editExpense('@e.Id')">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                }
+                                @if (Can("expenses.delete"))
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteExpense('@e.Id','@e.ExpenseNumber')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-5">
+                                <i class="bi bi-wallet2 fs-2 d-block mb-2 opacity-25"></i>
+                                No expenses recorded yet.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* Pagination *@
+    @if (totalPages > 0)
+    {
+        <div class="card-footer bg-transparent border-top d-flex align-items-center justify-content-between px-3 py-2">
+            <span class="text-muted small">
+                Showing @((currentPage - 1) * pageSize + 1)–@(Math.Min(currentPage * pageSize, totalCount)) of @totalCount expenses
+            </span>
+            <nav>
+                <ul class="pagination pagination-sm mb-0 gap-1">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage - 1, activeSearch, pageSize)">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    @{
+                        int start = Math.Max(1, currentPage - 2);
+                        int end   = Math.Min(totalPages, start + 4);
+                        start     = Math.Max(1, end - 4);
+                    }
+                    @if (start > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(1, activeSearch, pageSize)">1</a>
+                        </li>
+                        @if (start > 2)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                    }
+                    @for (int pg = start; pg <= end; pg++)
+                    {
+                        <li class="page-item @(pg == currentPage ? "active" : "")">
+                            <a class="page-link rounded" href="@BuildUrl(pg, activeSearch, pageSize)">@pg</a>
+                        </li>
+                    }
+                    @if (end < totalPages)
+                    {
+                        @if (end < totalPages - 1)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(totalPages, activeSearch, pageSize)">@totalPages</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage + 1, activeSearch, pageSize)">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Per page:</span>
+                <select class="form-select form-select-sm" style="width:70px" id="pageSizeSelect">
+                    @foreach (var ps in new[] { 10, 20, 50, 100 })
+                    {
+                        if (ps == pageSize)
+                        {
+                            <option value="@ps" selected="selected">@ps</option>
+                        }
+                        else
+                        {
+                            <option value="@ps">@ps</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+    }
+
+@functions {
+    string BuildUrl(int page, string search, int pageSize)
+    {
+        var q = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrEmpty(search)) q.Add($"search={Uri.EscapeDataString(search)}");
+        q.Add($"page={page}");
+        q.Add($"pageSize={pageSize}");
+        return "/Expense?" + string.Join("&", q);
+    }
+}
+
+</div>
+
+<!-- Expense Modal -->
+<div class="modal fade" id="expModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Record Expense</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="eId">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="eDate">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Category <span class="text-danger">*</span></label>
+                        <select class="form-select" id="eCat">
+                            <option value="">-- Select Category --</option>
+                            <option>Rent / Office</option>
+                            <option>Salary</option>
+                            <option>Utilities</option>
+                            <option>Marketing</option>
+                            <option>Travel</option>
+                            <option>Software</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Vendor (optional)</label>
+                        @* <select class="form-select" id="eVendor">
+                            <option value="">— None —</option>
+                        </select> *@
+                        <select class="form-select" id="eVendor">
+                            <option value="">— None —</option>
+
+                            @if (ViewBag.Vendors != null)
+                            {
+                                foreach (var v in ViewBag.Vendors)
+                                {
+                                    <option value="@v.Value">@v.Text</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Amount <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">₹</span>
+                            <input type="number" class="form-control" id="eAmount" min="0" step="0.01" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Tax Rate %</label>
+                        <input type="number" class="form-control" id="eTaxRate" min="0" max="100" step="0.01" value="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Payment Method</label>
+                        <select class="form-select" id="eMethod">
+                            <option value="">— Select —</option>
+                            <option>Cash</option>
+                            <option>Bank Transfer</option>
+                            <option>UPI</option>
+                            <option>Credit Card</option>
+                            <option>Cheque</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Reference / Invoice No.</label>
+                        <input type="text" class="form-control" id="eRef" placeholder="Optional reference">
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end gap-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="eRecurring" onchange="toggleRecurring()">
+                            <label class="form-check-label" for="eRecurring">Recurring</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4" id="recurringDiv" style="display:none">
+                        <label class="form-label">Recurrence</label>
+                        <select class="form-select" id="ePeriod">
+                            <option>Monthly</option>
+                            <option>Quarterly</option>
+                            <option>Yearly</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="eDesc" rows="2" placeholder="What was this expense for?"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnSave" onclick="saveExpense()">
+                    <i class="bi bi-check-lg me-1"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var modal = new bootstrap.Modal(document.getElementById('expModal'));
+
+        $.get('/Vendor/GetSelectList', function(res){
+            if(!res.success) return;
+            var sel=document.getElementById('eVendor');
+            (res.data||[]).forEach(function(v){ sel.add(new Option(v.text,v.value)); });
+        });
+
+        function openModal(){
+            document.getElementById('eId').value='';
+            document.getElementById('eDate').value=new Date().toISOString().slice(0,10);
+            // document.getElementById('eCat').value='Other';
+            document.getElementById('eCat').value='';
+            document.getElementById('eAmount').value='0';
+            document.getElementById('eTaxRate').value='0';
+            document.getElementById('eMethod').value='';
+            document.getElementById('eRef').value='';
+            document.getElementById('eDesc').value='';
+            document.getElementById('eRecurring').checked=false;
+            document.getElementById('recurringDiv').style.display='none';
+            document.getElementById('modalTitle').textContent='Record Expense';
+            modal.show();
+        }
+
+        function editExpense(id){
+            $.get('/Expense/GetById?id='+id, function(res){
+                if(!res.success){ toastError(res.message); return; }
+                var d=res.data;
+                document.getElementById('eId').value=d.id;
+                document.getElementById('eDate').value=d.expenseDate.split('T')[0];
+                document.getElementById('eCat').value=d.category;
+                document.getElementById('eVendor').value=d.vendorId||'';
+                document.getElementById('eAmount').value=d.amount;
+                document.getElementById('eTaxRate').value=d.taxRate||0;
+                document.getElementById('eMethod').value=d.paymentMethod||'';
+                document.getElementById('eRef').value=d.reference||'';
+                document.getElementById('eDesc').value=d.description||'';
+                document.getElementById('eRecurring').checked=d.isRecurring;
+                document.getElementById('ePeriod').value=d.recurrencePeriod||'Monthly';
+                document.getElementById('recurringDiv').style.display=d.isRecurring?'':'none';
+                document.getElementById('modalTitle').textContent='Edit Expense';
+                modal.show();
+            });
+        }
+
+        function toggleRecurring(){
+            document.getElementById('recurringDiv').style.display=
+                document.getElementById('eRecurring').checked?'':'none';
+        }
+
+        function saveExpense(){
+            var amount=parseFloat(document.getElementById('eAmount').value)||0;
+            var category = document.getElementById('eCat').value;
+
+             if(!category || category.trim() === '')
+            {
+                toastError('Category is required.');
+                return;
+            }
+            if(amount<=0)
+            { 
+                toastError('Amount must be greater than 0.'); 
+                return; 
+            }
+
+           
+
+
+
+            var $btn=$('#btnSave').prop('disabled',true).html('<span class="spinner-border spinner-border-sm"></span>');
+            var dto={
+                id: document.getElementById('eId').value||null,
+                expenseDate: document.getElementById('eDate').value,
+                // category: document.getElementById('eCat').value,
+                category: category,
+                vendorId: document.getElementById('eVendor').value||null,
+                amount: amount,
+                taxRate: parseFloat(document.getElementById('eTaxRate').value)||0,
+                paymentMethod: document.getElementById('eMethod').value||null,
+                reference: document.getElementById('eRef').value.trim()||null,
+                description: document.getElementById('eDesc').value.trim()||null,
+                isRecurring: document.getElementById('eRecurring').checked,
+                recurrencePeriod: document.getElementById('eRecurring').checked?document.getElementById('ePeriod').value:null
+            };
+            ajaxPost('/Expense/Save',dto,$btn).done(function(res){
+                $btn.prop('disabled',false).html('<i class="bi bi-check-lg me-1"></i> Save');
+                if(res.success){ toastSuccess(res.message); modal.hide(); setTimeout(()=>location.reload(),700); }
+                else toastError(res.message);
+            });
+        }
+
+        function deleteExpense(id,num){
+            confirmDelete({title:'Delete expense?',text:num}).then(function(r){
+                if(!r.isConfirmed) return;
+                ajaxPost('/Expense/Delete?id='+id,{}).done(function(res){
+                    if(res.success){ toastSuccess(res.message); setTimeout(()=>location.reload(),700); }
+                    else toastError(res.message);
+                });
+            });
+        }
+
+        function filterTable(){
+            var q=document.getElementById('searchInput').value.toLowerCase();
+            var cat=document.getElementById('filterCat').value.toLowerCase();
+            var st=document.getElementById('filterStatus').value.toLowerCase();
+            document.querySelectorAll('#tbody tr[data-category]').forEach(function(tr){
+                var match=tr.textContent.toLowerCase().includes(q)
+                    && (!cat || tr.dataset.category.toLowerCase().includes(cat))
+                    && (!st  || tr.dataset.status.toLowerCase()===st);
+                tr.style.display=match?'':'none';
+            });
+        }
+        // AJAX pagination (no full reload)
+        function loadExpensesFromUrl(url) {
+            $.get(url).done(function (html) {
+                var tmp = $('<div>').append($.parseHTML(html));
+                var newCard = tmp.find('#expListCard');
+                if (newCard.length) {
+                    $('#expListCard').replaceWith(newCard);
+                    setupExpensePaginationHandlers();
+                    initExpenseHandlers();
+                } else {
+                    window.location.href = url; // fallback
+                }
+            }).fail(function () { toastError('Failed to load expenses.'); });
+        }
+
+        function setupExpensePaginationHandlers() {
+            $('#pageSizeSelect').off('change').on('change', function () {
+                var ps = $(this).val();
+                var s = encodeURIComponent($('#searchInput').val() || '');
+                var url = '/Expense?page=1&pageSize=' + ps + (s ? '&search=' + s : '');
+                loadExpensesFromUrl(url);
+            });
+
+            $(document).off('click', '#expListCard .pagination a').on('click', '#expListCard .pagination a', function (e) {
+                e.preventDefault();
+                var href = $(this).attr('href');
+                if (href) loadExpensesFromUrl(href);
+            });
+        }
+
+        function initExpenseHandlers() {
+            $('#searchInput').off('input').on('input', filterTable);
+            $('#filterCat').off('change').on('change', filterTable);
+            $('#filterStatus').off('change').on('change', filterTable);
+        }
+
+        // initialize on load
+        setupExpensePaginationHandlers(); initExpenseHandlers();
+    </script>
+}

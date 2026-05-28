@@ -1,0 +1,294 @@
+﻿@{
+    ViewData["Title"] = "PDF Templates";
+    ViewBag.ActiveMenu = "templates";
+    var currentTpl = ViewBag.CurrentTemplate as string ?? "classic";
+}
+
+@section Styles {
+<style>
+.tpl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 24px;
+}
+.tpl-card {
+    border: 2px solid #E5E7EB;
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color .2s, box-shadow .2s, transform .15s;
+    background: #fff;
+    position: relative;
+}
+.tpl-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 8px 30px rgba(59,130,246,.15);
+    transform: translateY(-3px);
+}
+.tpl-card.selected {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(59,130,246,.15);
+}
+.selected-badge {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--primary);
+    color: #fff;
+    font-size: .68rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    z-index: 2;
+}
+.tpl-card.selected .selected-badge { display: block; }
+.tpl-preview {
+    height: 200px;
+    overflow: hidden;
+    background: #F8FAFC;
+    border-bottom: 1px solid #E5E7EB;
+    position: relative;
+}
+.tpl-preview iframe {
+    width: 150%;
+    height: 150%;
+    border: none;
+    transform: scale(0.667);
+    transform-origin: top left;
+    pointer-events: none;
+}
+.tpl-info { padding: 14px 16px; }
+.tpl-name { font-weight: 700; font-size: .9rem; color: #111827; margin-bottom: 3px; }
+.tpl-desc { font-size: .75rem; color: #6B7280; }
+.tpl-actions { display: flex; gap: 8px; margin-top: 12px; }
+.current-banner {
+    background: linear-gradient(135deg, #EFF6FF, #E0E7FF);
+    border: 1px solid #BFDBFE;
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 28px;
+}
+.banner-icon {
+    width: 44px; height: 44px;
+    background: var(--primary);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 1.1rem; flex-shrink: 0;
+}
+#previewModal .modal-dialog { max-width: 860px; }
+#previewModal .modal-body { padding: 0; height: 72vh; }
+#previewModal iframe { width: 100%; height: 100%; border: none; }
+</style>
+}
+
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h4 class="mb-1">PDF Templates</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="/Invoice">Invoices</a></li>
+                <li class="breadcrumb-item active">PDF Templates</li>
+            </ol>
+        </nav>
+    </div>
+    <a href="/Invoice/Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> New Invoice
+    </a>
+</div>
+
+<!-- Active template banner -->
+<div class="current-banner">
+    <div class="banner-icon"><i class="bi bi-palette"></i></div>
+    <div>
+        <div style="font-weight:700;font-size:.9rem;color:#2563EB;">
+            Active Template: <span id="activeName">Classic Professional</span>
+        </div>
+        <div style="font-size:.78rem;color:#2563EB;margin-top:3px;">
+            This template is used when sending invoice emails to clients.
+        </div>
+    </div>
+    <button class="btn btn-primary btn-sm ms-auto px-4" id="btnApply">
+        <i class="bi bi-check-lg me-1"></i> Save &amp; Apply
+    </button>
+</div>
+
+<!-- Template grid -->
+<div class="tpl-grid">
+    <div class="tpl-card" data-tpl="classic" data-name="Classic Professional"
+         onclick="selectTemplate(this)">
+        <span class="selected-badge"><i class="bi bi-check me-1"></i>Active</span>
+        <div class="tpl-preview">
+            <iframe src="/Invoice/TemplatePreview?tpl=classic" loading="lazy"></iframe>
+        </div>
+        <div class="tpl-info">
+            <div class="tpl-name">Classic Professional</div>
+            <div class="tpl-desc">Clean indigo header. Best for corporate clients.</div>
+            <div class="tpl-actions">
+                <button class="btn btn-sm btn-outline-primary flex-grow-1"
+                        onclick="event.stopPropagation(); openPreview('classic','Classic Professional')">
+                    <i class="bi bi-eye me-1"></i>Preview
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="tpl-card" data-tpl="modern" data-name="Modern Bold"
+         onclick="selectTemplate(this)">
+        <span class="selected-badge"><i class="bi bi-check me-1"></i>Active</span>
+        <div class="tpl-preview">
+            <iframe src="/Invoice/TemplatePreview?tpl=modern" loading="lazy"></iframe>
+        </div>
+        <div class="tpl-info">
+            <div class="tpl-name">Modern Bold</div>
+            <div class="tpl-desc">Dark header with amber accents. Great for agencies.</div>
+            <div class="tpl-actions">
+                <button class="btn btn-sm btn-outline-primary flex-grow-1"
+                        onclick="event.stopPropagation(); openPreview('modern','Modern Bold')">
+                    <i class="bi bi-eye me-1"></i>Preview
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="tpl-card" data-tpl="minimal" data-name="Minimal Clean"
+         onclick="selectTemplate(this)">
+        <span class="selected-badge"><i class="bi bi-check me-1"></i>Active</span>
+        <div class="tpl-preview">
+            <iframe src="/Invoice/TemplatePreview?tpl=minimal" loading="lazy"></iframe>
+        </div>
+        <div class="tpl-info">
+            <div class="tpl-name">Minimal Clean</div>
+            <div class="tpl-desc">White serif layout. Perfect for consultants.</div>
+            <div class="tpl-actions">
+                <button class="btn btn-sm btn-outline-primary flex-grow-1"
+                        onclick="event.stopPropagation(); openPreview('minimal','Minimal Clean')">
+                    <i class="bi bi-eye me-1"></i>Preview
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="tpl-card" data-tpl="elegant" data-name="Elegant Accent"
+         onclick="selectTemplate(this)">
+        <span class="selected-badge"><i class="bi bi-check me-1"></i>Active</span>
+        <div class="tpl-preview">
+            <iframe src="/Invoice/TemplatePreview?tpl=elegant" loading="lazy"></iframe>
+        </div>
+        <div class="tpl-info">
+            <div class="tpl-name">Elegant Accent</div>
+            <div class="tpl-desc">Teal gradient accent. Ideal for luxury services.</div>
+            <div class="tpl-actions">
+                <button class="btn btn-sm btn-outline-primary flex-grow-1"
+                        onclick="event.stopPropagation(); openPreview('elegant','Elegant Accent')">
+                    <i class="bi bi-eye me-1"></i>Preview
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-eye me-2 text-primary"></i>
+                    Preview: <span id="previewTitle"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <iframe id="previewFrame" src=""></iframe>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="btnUseFromPreview">
+                    <i class="bi bi-check-lg me-1"></i>Use This Template
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    var modal         = new bootstrap.Modal(document.getElementById('previewModal'));
+    var selectedTpl   = '@currentTpl';
+    var selectedName  = 'Classic Professional';
+
+    var nameMap = {
+        classic: 'Classic Professional',
+        modern:  'Modern Bold',
+        minimal: 'Minimal Clean',
+        elegant: 'Elegant Accent'
+    };
+
+    // ── Init — mark the server-saved template as selected ────────
+    (function init() {
+        selectedName = nameMap[selectedTpl] || 'Classic Professional';
+        document.getElementById('activeName').textContent = selectedName;
+        var card = document.querySelector('[data-tpl="' + selectedTpl + '"]');
+        if (card) card.classList.add('selected');
+    })();
+
+    // ── Select a template card ───────────────────────────────────
+    function selectTemplate(card) {
+        document.querySelectorAll('.tpl-card').forEach(function(c) {
+            c.classList.remove('selected');
+        });
+        card.classList.add('selected');
+        selectedTpl  = card.dataset.tpl;
+        selectedName = card.dataset.name;
+        document.getElementById('activeName').textContent = selectedName;
+    }
+
+    // ── Open preview modal ────────────────────────────────────────
+    function openPreview(tpl, name) {
+        document.getElementById('previewTitle').textContent = name;
+        document.getElementById('previewFrame').src = '/Invoice/TemplatePreview?tpl=' + tpl;
+        document.getElementById('btnUseFromPreview').onclick = function() {
+            var card = document.querySelector('[data-tpl="' + tpl + '"]');
+            if (card) selectTemplate(card);
+            modal.hide();
+        };
+        modal.show();
+    }
+
+    // ── Save & Apply — saves to DB via server ────────────────────
+    document.getElementById('btnApply').addEventListener('click', function() {
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Saving...');
+
+        $.ajax({
+            url:  '/Invoice/SaveTemplate',
+            type: 'POST',
+            data: { template: selectedTpl }
+        })
+        .done(function(res) {
+            $btn.prop('disabled', false).html('<i class="bi bi-check-lg me-1"></i> Save &amp; Apply');
+            if (res && res.success) {
+                Swal.fire({
+                    icon:              'success',
+                    title:             'Template Applied!',
+                    html:              '<b>' + selectedName + '</b> is now active.<br>All future invoice emails will use this format.',
+                    confirmButtonColor: '#2563EB',
+                    timer:             2500,
+                    showConfirmButton:  false
+                });
+            } else {
+                toastError((res && res.message) || 'Failed to save template.');
+            }
+        })
+        .fail(function(xhr) {
+            $btn.prop('disabled', false).html('<i class="bi bi-check-lg me-1"></i> Save &amp; Apply');
+            toastError('Server error (status ' + xhr.status + '). Please try again.');
+        });
+    });
+</script>
+}

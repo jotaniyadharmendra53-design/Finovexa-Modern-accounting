@@ -1,0 +1,142 @@
+﻿@{
+    ViewData["Title"] = "Accounting";
+    ViewBag.ActiveMenu = "accounting";
+    var perms = ViewBag.Permissions as HashSet<string> ?? new HashSet<string>();
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    bool Can(string c) => isSA || perms.Contains(c);
+}
+
+<div class="mb-4">
+    <h4 class="mb-1">Accounting</h4>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item active">Accounting</li>
+        </ol>
+    </nav>
+</div>
+
+<div class="row g-4">
+    @if (Can("accounting.view"))
+    {
+        <div class="col-md-6 col-lg-3">
+            <a href="/Accounting/PnL" class="card border-0 shadow-sm h-100 text-decoration-none text-body">
+                <div class="card-body text-center py-4">
+                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width:56px;height:56px;background:#EFF6FF;">
+                        <i class="bi bi-bar-chart-line fs-4 text-primary"></i>
+                    </div>
+                    <h6 class="fw-600 mb-1">Profit &amp; Loss</h6>
+                    <p class="text-muted small mb-0">Revenue vs expenses by period</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <a href="/Accounting/CashFlow" class="card border-0 shadow-sm h-100 text-decoration-none text-body">
+                <div class="card-body text-center py-4">
+                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width:56px;height:56px;background:#F0FDF4;">
+                        <i class="bi bi-arrow-left-right fs-4 text-success"></i>
+                    </div>
+                    <h6 class="fw-600 mb-1">Cash Flow</h6>
+                    <p class="text-muted small mb-0">Money in and out over time</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <a href="/Accounting/Receivables" class="card border-0 shadow-sm h-100 text-decoration-none text-body">
+                <div class="card-body text-center py-4">
+                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width:56px;height:56px;background:#FFFBEB;">
+                        <i class="bi bi-clock-history fs-4 text-warning"></i>
+                    </div>
+                    <h6 class="fw-600 mb-1">Accounts Receivable</h6>
+                    <p class="text-muted small mb-0">Unpaid invoices by client &amp; age</p>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <a href="/Accounting/Payables" class="card border-0 shadow-sm h-100 text-decoration-none text-body">
+                <div class="card-body text-center py-4">
+                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width:56px;height:56px;background:#FFF1F2;">
+                        <i class="bi bi-wallet2 fs-4 text-danger"></i>
+                    </div>
+                    <h6 class="fw-600 mb-1">Accounts Payable</h6>
+                    <p class="text-muted small mb-0">Unpaid expenses by vendor &amp; age</p>
+                </div>
+            </a>
+        </div>
+    }
+</div>
+
+<!-- Quick links to modules -->
+<div class="row g-3 mt-2">
+    <div class="col-12"><h6 class="text-muted fw-600 mb-2">Modules</h6></div>
+    @if (Can("products.view"))
+    {
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/Product" class="card border-0 shadow-sm text-decoration-none text-body">
+                <div class="card-body py-3 text-center">
+                    <i class="bi bi-box-seam fs-5 text-primary d-block mb-1"></i>
+                    <div class="small fw-600">Products</div>
+                </div>
+            </a>
+        </div>
+    }
+    @if (Can("vendors.view"))
+    {
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/Vendor" class="card border-0 shadow-sm text-decoration-none text-body">
+                <div class="card-body py-3 text-center">
+                    <i class="bi bi-truck fs-5 text-secondary d-block mb-1"></i>
+                    <div class="small fw-600">Vendors</div>
+                </div>
+            </a>
+        </div>
+    }
+    @if (Can("estimates.view"))
+    {
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/Estimate" class="card border-0 shadow-sm text-decoration-none text-body">
+                <div class="card-body py-3 text-center">
+                    <i class="bi bi-file-earmark-check fs-5 text-info d-block mb-1"></i>
+                    <div class="small fw-600">Estimates</div>
+                </div>
+            </a>
+        </div>
+    }
+    @if (Can("sales.view"))
+    {
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/Sale" class="card border-0 shadow-sm text-decoration-none text-body">
+                <div class="card-body py-3 text-center">
+                    <i class="bi bi-cart-check fs-5 text-success d-block mb-1"></i>
+                    <div class="small fw-600">Sales</div>
+                </div>
+            </a>
+        </div>
+    }
+    @if (Can("expenses.view"))
+    {
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/Expense" class="card border-0 shadow-sm text-decoration-none text-body">
+                <div class="card-body py-3 text-center">
+                    <i class="bi bi-wallet2 fs-5 text-danger d-block mb-1"></i>
+                    <div class="small fw-600">Expenses</div>
+                </div>
+            </a>
+        </div>
+    }
+    @if (Can("payments.view"))
+    {
+        <div class="col-6 col-md-4 col-lg-2">
+            <a href="/Payment" class="card border-0 shadow-sm text-decoration-none text-body">
+                <div class="card-body py-3 text-center">
+                    <i class="bi bi-credit-card fs-5 text-warning d-block mb-1"></i>
+                    <div class="small fw-600">Payments</div>
+                </div>
+            </a>
+        </div>
+    }
+</div>

@@ -1,0 +1,166 @@
+﻿@model InvoiceSaaS.Application.DTOs.Roles.RoleDetailDto
+@{
+    bool isEdit = Model?.Id != Guid.Empty && Model?.Id != null;
+}
+
+<form id="roleForm" data-id="@(isEdit ? Model!.Id.ToString() : "")">
+    @Html.AntiForgeryToken()
+
+    <!-- Role Name + Description -->
+    <div class="p-4 border-bottom">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">
+                    Role Name <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control" id="roleName"
+                       value="@Model?.Name" placeholder="e.g. Accountant"
+                       maxlength="100" @(Model?.IsSystem == true ? "readonly" : "")/>
+                @if (Model?.IsSystem == true)
+                {
+                    <div class="form-text text-warning">
+                        <i class="bi bi-lock-fill me-1"></i>System role name cannot be changed.
+                    </div>
+                }
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Description</label>
+                <input type="text" class="form-control" id="roleDescription"
+                       value="@Model?.Description" placeholder="Brief description of this role"
+                       maxlength="300"/>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permissions Header -->
+    <div class="px-4 pt-4 pb-2">
+        <div class="d-flex align-items-center justify-content-between mb-1">
+            <h6 class="fw-700 mb-0">
+                <i class="bi bi-key me-2 text-primary"></i>Permissions
+            </h6>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="btnSelectAll">
+                    <i class="bi bi-check-all me-1"></i>Select All
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnClearAll">
+                    <i class="bi bi-x-lg me-1"></i>Clear All
+                </button>
+            </div>
+        </div>
+        <p class="text-muted fs-13 mb-0">
+            Check the permissions this role should have.
+            Each module has a <strong>Select All</strong> toggle.
+        </p>
+    </div>
+
+    <!-- Permission Modules -->
+    <div class="px-4 pb-2">
+        @if (Model?.PermissionGroups?.Any() == true)
+        {
+            @foreach (var group in Model.PermissionGroups)
+            {
+                var checkedCount = group.Permissions.Count(p => p.IsChecked);
+                var totalCount   = group.Permissions.Count;
+
+                <div class="permission-module mb-2">
+                    <!-- Module Header -->
+                    <div class="permission-module-header">
+                        <input type="checkbox"
+                               class="form-check-input module-select-all me-1"
+                               data-module="@group.Module"
+                               id="moduleAll_@group.Module"
+                               @(checkedCount == totalCount ? "checked" : "")
+                               style="cursor:pointer;"/>
+                        <label for="moduleAll_@group.Module"
+                               class="fw-600 fs-13 flex-grow-1 mb-0 cursor-pointer"
+                               style="color:#374151;">
+                            <i class="bi @(group.Module switch {
+                                "Users"    => "bi-person-gear",
+                                "Roles"    => "bi-shield-check",
+                                "Clients"  => "bi-people",
+                                "Invoices" => "bi-receipt",
+                                "Reports"  => "bi-bar-chart",
+                                "Settings" => "bi-gear",
+                                "Company"  => "bi-building",
+                                _          => "bi-grid"
+                            }) me-2 text-primary"></i>
+                            @group.Module
+                        </label>
+                        <span class="badge perm-count-badge fs-12 @(checkedCount > 0 ? "bg-primary text-white" : "bg-light text-muted")"
+                              style="min-width:42px;text-align:center;">
+                            @checkedCount/@totalCount
+                        </span>
+                    </div>
+
+                    <!-- Individual permissions -->
+                    <div class="permission-module-body">
+                        @foreach (var perm in group.Permissions)
+                        {
+                            <label class="perm-check">
+                                <input type="checkbox"
+                                       class="form-check-input perm-checkbox"
+                                       value="@perm.Id"
+                                       data-module="@group.Module"
+                                       @(perm.IsChecked ? "checked" : "")/>
+                                <span>
+                                    @perm.Name
+                                    @if (!string.IsNullOrEmpty(perm.Description))
+                                    {
+                                        <i class="bi bi-info-circle text-muted ms-1"
+                                           data-bs-toggle="tooltip"
+                                           title="@perm.Description"
+                                           style="font-size:.75rem;"></i>
+                                    }
+                                </span>
+                            </label>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-key fs-2 opacity-25"></i>
+                <p class="mt-2 fs-13">No permissions found.</p>
+            </div>
+        }
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer sticky-bottom bg-white border-top">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            Cancel
+        </button>
+        <button type="button" class="btn btn-primary px-4" id="saveRoleBtn" onclick="saveRole()">
+            <i class="bi bi-check-lg me-2"></i>
+            @(isEdit ? "Save Changes" : "Create Role")
+        </button>
+    </div>
+</form>
+
+<script>
+// ── Select All / Clear All buttons ────────────────────────────
+$('#btnSelectAll').on('click', function () {
+    $('input.perm-checkbox').prop('checked', true);
+    $('input.module-select-all').prop('checked', true).prop('indeterminate', false);
+    $('.perm-count-badge').each(function () {
+        const text = $(this).text().split('/');
+        $(this).text(text[1] + '/' + text[1])
+               .addClass('bg-primary text-white').removeClass('bg-light text-muted');
+    });
+});
+
+$('#btnClearAll').on('click', function () {
+    $('input.perm-checkbox').prop('checked', false);
+    $('input.module-select-all').prop('checked', false).prop('indeterminate', false);
+    $('.perm-count-badge').each(function () {
+        const text = $(this).text().split('/');
+        $(this).text('0/' + text[1])
+               .removeClass('bg-primary text-white').addClass('bg-light text-muted');
+    });
+});
+
+// Init tooltips inside modal
+$('[data-bs-toggle="tooltip"]').tooltip();
+</script>

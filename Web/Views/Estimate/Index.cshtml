@@ -1,0 +1,307 @@
+﻿@model IEnumerable<EstimateDto>
+@{
+    var perms = ViewBag.Permissions as HashSet<string> ?? new HashSet<string>();
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    bool Can(string c) => isSA || perms.Contains(c); ViewData["Title"] = "Estimates"; ViewBag.ActiveMenu = "estimates";
+    int currentPage = (int)(ViewBag.Page ?? 1);
+    int pageSize = (int)(ViewBag.PageSize ?? 20);
+    int totalCount = (int)(ViewBag.TotalCount ?? 0);
+    int totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var activeSearch = ViewBag.Search ?? "";
+    var activeStatus = (ViewBag.Filter as dynamic)?.Status != null ? ((int)((ViewBag.Filter as dynamic).Status)).ToString() : "";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h4 class="mb-1">Estimates</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item active">Estimates</li>
+        </ol></nav>
+    </div>
+    @if(Can("estimates.create")){
+    <a href="/Estimate/Create" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> New Estimate
+    </a>
+    }
+</div>
+
+<!-- Filter bar -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3 d-flex gap-2 align-items-center">
+            <div class="input-group input-group-sm" style="max-width:260px">
+            <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Search…" value="@activeSearch" oninput="filterTable()">
+        </div>
+        <select id="filterStatus" class="form-select form-select-sm" style="max-width:150px" onchange="filterTable()">
+            <option value="">All status</option>
+            <option>Draft</option><option>Sent</option><option>Accepted</option>
+            <option>Declined</option><option>Invoiced</option>
+        </select>
+    </div>
+</div>
+
+<div id="estListCard" class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Estimate #</th>
+                        <th>Client</th>
+                        <th>Issue Date</th>
+                        <th>Expiry Date</th>
+                        <th>Status</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                @* @foreach(var e in Model){
+                @{
+                    var badge = e.Status switch {
+                        0    => "bg-secondary-subtle text-secondary",
+                        1     => "bg-primary-subtle text-primary",
+                        2 => "bg-success-subtle text-success",
+                        3 => "bg-danger-subtle text-danger",
+                        4 => "bg-info-subtle text-info",
+                        _ => "bg-secondary-subtle text-secondary"
+                    };
+                } *@
+                    @foreach (var e in Model)
+                    {
+                        var badge = e.Status switch
+                        {
+                            0 => "bg-secondary-subtle text-secondary",
+                            1 => "bg-primary-subtle text-primary",
+                            2 => "bg-success-subtle text-success",
+                            3 => "bg-danger-subtle text-danger",
+                            4 => "bg-info-subtle text-info",
+                            _ => "bg-secondary-subtle text-secondary"
+                        };
+                <tr data-status="@e.StatusName">
+                    <td>
+                        <a href="/Estimate/Detail/@e.Id" class="fw-600 text-primary text-decoration-none">@e.EstimateNumber</a>
+                        @if(e.IsExpired){<div class="text-danger small"><i class="bi bi-exclamation-triangle"></i> Expired</div>}
+                    </td>
+                    <td>
+                        <div>@e.ClientName</div>
+                        @if(!string.IsNullOrEmpty(e.ClientEmail)){<div class="text-muted small">@e.ClientEmail</div>}
+                    </td>
+                    <td class="small text-muted">@e.IssueDate.ToString("dd MMM yyyy")</td>
+                    <td class="small @(e.IsExpired?"text-danger fw-600":"text-muted")">@e.ExpiryDate.ToString("dd MMM yyyy")</td>
+                    <td><span class="badge @badge">@e.StatusName</span></td>
+                    <td class="text-end fw-600">₹@e.Total.ToString("N2")</td>
+                    <td class="text-end">
+                                <a href="/Estimate/Detail/@e.Id" class="btn btn-outline-warning" title="View">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            @if(e.Status == 0 && Can("estimates.edit")){
+                            <a href="/Estimate/Edit/@e.Id" class="btn btn-outline-primary" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            }
+                            @if((e.Status == 0 || e.Status == 1) && Can("estimates.send")){
+                            <button class="btn btn-outline-success" onclick="sendEstimate('@e.Id','@e.EstimateNumber')" title="Send">
+                                <i class="bi bi-send"></i>
+                            </button>
+                            }
+                            @if(e.Status == 2 && Can("estimates.convert")){
+                            <button class="btn btn-outline-info" onclick="convertEstimate('@e.Id','@e.EstimateNumber')" title="Convert to Invoice">
+                                <i class="bi bi-arrow-right-circle"></i>
+                            </button>
+                            }
+                            @if(Can("estimates.delete") && e.Status == 0){
+                            <button class="btn btn-outline-danger" onclick="deleteEstimate('@e.Id','@e.EstimateNumber')" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            }
+
+                    </td>
+                </tr>
+                }
+                @if(!Model.Any()){
+                <tr><td colspan="7" class="text-center text-muted py-5">
+                    <i class="bi bi-file-earmark-check fs-2 d-block mb-2 opacity-25"></i>
+                    No estimates yet. Create your first estimate.
+                </td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* Pagination *@
+    @if (totalPages > 0)
+    {
+        <div class="card-footer bg-transparent border-top d-flex align-items-center justify-content-between px-3 py-2">
+            <span class="text-muted small">
+                Showing @((currentPage - 1) * pageSize + 1)–@(Math.Min(currentPage * pageSize, totalCount)) of @totalCount estimates
+            </span>
+            <nav>
+                <ul class="pagination pagination-sm mb-0 gap-1">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage - 1, activeSearch, activeStatus, pageSize)">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    @{
+                        int start = Math.Max(1, currentPage - 2);
+                        int end   = Math.Min(totalPages, start + 4);
+                        start     = Math.Max(1, end - 4);
+                    }
+                    @if (start > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(1, activeSearch, activeStatus, pageSize)">1</a>
+                        </li>
+                        @if (start > 2)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                    }
+                    @for (int pg = start; pg <= end; pg++)
+                    {
+                        <li class="page-item @(pg == currentPage ? "active" : "")">
+                            <a class="page-link rounded" href="@BuildUrl(pg, activeSearch, activeStatus, pageSize)">@pg</a>
+                        </li>
+                    }
+                    @if (end < totalPages)
+                    {
+                        @if (end < totalPages - 1)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(totalPages, activeSearch, activeStatus, pageSize)">@totalPages</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage + 1, activeSearch, activeStatus, pageSize)">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Per page:</span>
+                <select class="form-select form-select-sm" style="width:70px" id="pageSizeSelect">
+                    @foreach (var ps in new[] { 10, 20, 50, 100 })
+                    {
+                        if (ps == pageSize)
+                        {
+                            <option value="@ps" selected="selected">@ps</option>
+                        }
+                        else
+                        {
+                            <option value="@ps">@ps</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+    }
+
+@functions {
+    string BuildUrl(int page, string search, string status, int pageSize)
+    {
+        var q = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrEmpty(search)) q.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrEmpty(status)) q.Add($"status={status}");
+        q.Add($"page={page}");
+        q.Add($"pageSize={pageSize}");
+        return "/Estimate?" + string.Join("&", q);
+    }
+}
+
+</div>
+
+@section Scripts {
+<script>
+function sendEstimate(id,num){
+    Swal.fire({icon:'question',title:'Send estimate?',
+        html:'Send <b>'+num+'</b> to the client by email?',
+        confirmButtonText:'Send',confirmButtonColor:'#2563EB',showCancelButton:true
+    }).then(function(r){
+        if(!r.isConfirmed) return;
+        ajaxPost('/Estimate/Send?id='+id,{}).done(function(res){
+            if(res.success){ toastSuccess(res.message); setTimeout(()=>location.reload(),800); }
+            else toastError(res.message);
+        });
+    });
+}
+
+function convertEstimate(id,num){
+    Swal.fire({icon:'question',title:'Convert to invoice?',
+        html:'Create an invoice from estimate <b>'+num+'</b>?',
+        confirmButtonText:'Convert',confirmButtonColor:'#0F6E56',showCancelButton:true
+    }).then(function(r){
+        if(!r.isConfirmed) return;
+        ajaxPost('/Estimate/Convert?id='+id,{}).done(function(res){
+            if(res.success){
+                Swal.fire({icon:'success',title:'Invoice created!',text:res.message,timer:2000,showConfirmButton:false});
+                setTimeout(()=>location.reload(),2100);
+            } else toastError(res.message);
+        });
+    });
+}
+
+function deleteEstimate(id,num){
+    confirmDelete({title:'Delete estimate?',text:num}).then(function(r){
+        if(!r.isConfirmed) return;
+        ajaxPost('/Estimate/Delete?id='+id,{}).done(function(res){
+            if(res.success){ toastSuccess(res.message); setTimeout(()=>location.reload(),700); }
+            else toastError(res.message);
+        });
+    });
+}
+
+function filterTable(){
+    var q=document.getElementById('searchInput').value.toLowerCase();
+    var st=document.getElementById('filterStatus').value.toLowerCase();
+    document.querySelectorAll('#tbody tr[data-status]').forEach(function(tr){
+        var match=tr.textContent.toLowerCase().includes(q)&&(!st||tr.dataset.status.toLowerCase()===st);
+        tr.style.display=match?'':'none';
+    });
+}
+// AJAX pagination (no full reload)
+function loadEstimatesFromUrl(url) {
+    $.get(url).done(function(html){
+        var tmp = $('<div>').append($.parseHTML(html));
+        var newCard = tmp.find('#estListCard');
+        if (newCard.length) {
+            $('#estListCard').replaceWith(newCard);
+            setupEstimatePaginationHandlers();
+            initEstimateHandlers();
+        } else {
+            window.location.href = url; // fallback
+        }
+    }).fail(function(){ toastError('Failed to load estimates.'); });
+}
+
+function setupEstimatePaginationHandlers(){
+    // page-size selector
+    $('#pageSizeSelect').off('change').on('change', function(){
+        var ps = $(this).val();
+        var s = encodeURIComponent($('#searchInput').val()||'');
+        var st = encodeURIComponent($('#filterStatus').val()||'');
+        var url = '/Estimate?page=1&pageSize=' + ps + (s ? '&search=' + s : '') + (st ? '&status=' + st : '');
+        loadEstimatesFromUrl(url);
+    });
+
+    // pager links
+    $(document).off('click', '#estListCard .pagination a').on('click', '#estListCard .pagination a', function(e){
+        e.preventDefault(); var href = $(this).attr('href'); if(href) loadEstimatesFromUrl(href);
+    });
+}
+
+function initEstimateHandlers(){
+    // rebind filter inputs
+    $('#searchInput').off('input').on('input', filterTable);
+    $('#filterStatus').off('change').on('change', filterTable);
+}
+
+// init on load
+setupEstimatePaginationHandlers(); initEstimateHandlers();
+</script>
+}

@@ -1,0 +1,375 @@
+﻿@model InvoiceSaaS.Application.DTOs.Invoices.InvoiceDto
+@{
+    Layout = null;
+    ViewData["Title"] = Model.InvoiceNumber;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@Model.InvoiceNumber</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            color: #1F2937;
+            background: #fff;
+        }
+
+        .page {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 48px 48px 32px;
+        }
+
+        /* Header */
+        .inv-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 40px;
+        }
+
+        .company-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: #3B82F6;
+        }
+
+        .inv-label {
+            font-size: 28px;
+            font-weight: 800;
+            color: #3B82F6;
+            letter-spacing: -1px;
+        }
+
+        .inv-num {
+            font-size: 13px;
+            color: #6B7280;
+            margin-top: 4px;
+        }
+
+        /* Addresses */
+        .addresses {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .address-block h4 {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: #9CA3AF;
+            margin-bottom: 6px;
+        }
+
+        .address-block p {
+            font-size: 13px;
+            color: #374151;
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        /* Items table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 24px;
+        }
+
+        thead tr {
+            background: #F9FAFB;
+            border-bottom: 2px solid #E5E7EB;
+        }
+
+        thead th {
+            padding: 10px 12px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: #6B7280;
+            text-align: left;
+        }
+
+            thead th.right {
+                text-align: right;
+            }
+
+        tbody td {
+            padding: 11px 12px;
+            border-bottom: 1px solid #F3F4F6;
+            color: #374151;
+        }
+
+            tbody td.right {
+                text-align: right;
+            }
+
+        /* Totals */
+        .totals {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .totals-box {
+            min-width: 240px;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 13px;
+            color: #6B7280;
+            border-bottom: 1px solid #F3F4F6;
+        }
+
+            .total-row.grand {
+                font-size: 16px;
+                font-weight: 700;
+                color: #3B82F6;
+                border-top: 2px solid #E5E7EB;
+                border-bottom: none;
+                padding-top: 10px;
+                margin-top: 4px;
+            }
+
+            .total-row.balance {
+                font-size: 14px;
+                font-weight: 700;
+                color: #DC2626;
+            }
+
+        /* Notes */
+        .notes-section {
+            margin-top: 32px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+            .notes-section h4 {
+                font-size: 10px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: .08em;
+                color: #9CA3AF;
+                margin-bottom: 6px;
+            }
+
+            .notes-section p {
+                font-size: 12px;
+                color: #6B7280;
+                line-height: 1.6;
+            }
+
+        /* Status badge */
+        .status {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .status-draft {
+            background: #F3F4F6;
+            color: #6B7280;
+        }
+
+        .status-sent {
+            background: #DBEAFE;
+            color: #1D4ED8;
+        }
+
+        .status-paid {
+            background: #D1FAE5;
+            color: #065F46;
+        }
+
+        .status-overdue {
+            background: #FEE2E2;
+            color: #991B1B;
+        }
+
+        .status-cancelled {
+            background: #1F2937;
+            color: #9CA3AF;
+        }
+
+        /* Footer */
+        .inv-footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #E5E7EB;
+            text-align: center;
+            font-size: 11px;
+            color: #9CA3AF;
+        }
+
+        /* Print */
+        @@media print {
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .page {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Print button (hidden on print) -->
+    <div class="no-print" style="background:#F9FAFB;border-bottom:1px solid #E5E7EB;padding:12px 48px;display:flex;gap:12px;align-items:center;">
+        <button onclick="window.print()" style="background:#3B82F6;color:#fff;border:none;padding:8px 20px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;">
+            🖨 Print / Save PDF
+        </button>
+        <a href="/Invoice/Detail/@Model.Id" style="color:#3B82F6;text-decoration:none;font-size:13px;font-weight:500;">
+            ← Back to Invoice
+        </a>
+    </div>
+
+    <div class="page">
+
+        <!-- Header -->
+        <div class="inv-header">
+            <div>
+                <div class="company-name">@Model.CompanyName</div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    @if (!string.IsNullOrEmpty(Model.CompanyLogo))
+                    {
+                        <img src="@Model.CompanyLogo" alt="@Model.CompanyName"
+                             style="max-height:55px;max-width:130px;object-fit:contain;" />
+                    }
+                    <div class="company-name">@Model.CompanyName</div>
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <div class="inv-label">INVOICE</div>
+                <div class="inv-num">@Model.InvoiceNumber</div>
+                <div style="margin-top:6px;">
+                    @{
+                        var scls = Model.StatusName switch
+                        {
+                                "Draft" => "status-draft",
+                                "Sent" => "status-sent",
+                                "Paid" => "status-paid",
+                                "Overdue" => "status-overdue",
+                                "Cancelled" => "status-cancelled",
+                                _ => "status-draft"
+                        };
+                    }
+                    <span class="status @scls">@Model.StatusName</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Addresses + Dates -->
+        <div class="addresses">
+            <div class="address-block">
+                <h4>Bill To</h4>
+                <p><strong>@Model.ClientName</strong></p>
+                @if (!string.IsNullOrEmpty(Model.ClientEmail))
+                {
+                    <p>@Model.ClientEmail</p>
+                }
+            </div>
+            <div class="address-block" style="text-align:right;">
+                <h4>Invoice Details</h4>
+                <p>Issue Date: <strong>@Model.IssueDate.ToString("dd MMM yyyy")</strong></p>
+                <p>Due Date: <strong>@Model.DueDate.ToString("dd MMM yyyy")</strong></p>
+                @if (Model.SentAt.HasValue)
+                {
+                    <p>Sent: @Model.SentAt.Value.ToString("dd MMM yyyy")</p>
+                }
+            </div>
+        </div>
+
+        <!-- Line Items -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th class="right" style="width:80px;">Qty</th>
+                    <th class="right" style="width:110px;">Unit Price</th>
+                    <th class="right" style="width:110px;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Items.OrderBy(i => i.SortOrder))
+                {
+                    <tr>
+                        <td>@item.Description</td>
+                        <td class="right">@item.Quantity.ToString("G29")</td>
+                        <td class="right">@item.UnitPrice.ToString("N2")</td>
+                        <td class="right" style="font-weight:600;">@item.Amount.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <!-- Totals -->
+        <div class="totals">
+            <div class="totals-box">
+                <div class="total-row"><span>Subtotal</span><span>@Model.SubTotal.ToString("N2") @Model.CurrencyCode</span></div>
+                @if (Model.TaxRate > 0)
+                {
+                    <div class="total-row"><span>Tax (@Model.TaxRate.ToString("G29")%)</span><span>@Model.TaxAmount.ToString("N2") @Model.CurrencyCode</span></div>
+                }
+                @if (Model.Discount > 0)
+                {
+                    <div class="total-row" style="color:#059669;"><span>Discount</span><span>-@Model.Discount.ToString("N2") @Model.CurrencyCode</span></div>
+                }
+                <div class="total-row grand"><span>Total</span><span>@Model.Total.ToString("N2") @Model.CurrencyCode</span></div>
+                @if (Model.PaidAmount > 0)
+                {
+                    <div class="total-row" style="color:#059669;"><span>Paid</span><span>-@Model.PaidAmount.ToString("N2") @Model.CurrencyCode</span></div>
+                    <div class="total-row balance"><span>Balance Due</span><span>@Model.BalanceDue.ToString("N2") @Model.CurrencyCode</span></div>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.Notes) || !string.IsNullOrEmpty(Model.Terms))
+        {
+            <div class="notes-section">
+                @if (!string.IsNullOrEmpty(Model.Notes))
+                {
+                    <div>
+                        <h4>Notes</h4>
+                        <p>@Model.Notes</p>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(Model.Terms))
+                {
+                    <div>
+                        <h4>Terms &amp; Conditions</h4>
+                        <p>@Model.Terms</p>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="inv-footer">
+            © @DateTime.Now.Year @Model.CompanyName &nbsp;·&nbsp; Generated by Finovexa — an AllUpNext product
+        </div>
+    </div>
+</body>
+</html>

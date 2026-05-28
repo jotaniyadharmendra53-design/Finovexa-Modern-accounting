@@ -1,0 +1,111 @@
+@* AccessDenied.cshtml *@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Access Denied";
+    ViewBag.ActiveMenu = "";
+}
+
+@section Styles {
+<style>
+    .ad-wrap{min-height:60vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+    .ad-card{
+        position:relative;
+        background:linear-gradient(160deg,#11132A 0%,#1A1B3E 100%);
+        border:1px solid rgba(248,113,113,.22);
+        border-radius:20px;
+        padding:2.5rem 2.25rem;
+        color:#F8FAFC;
+        max-width:480px;width:100%;text-align:center;
+        box-shadow:0 18px 50px -18px rgba(239,68,68,.4),0 0 0 1px rgba(255,255,255,.04) inset;
+        overflow:hidden;
+        animation:ad-rise .7s cubic-bezier(.22,1,.36,1) both;
+    }
+    .ad-card::before{
+        content:'';position:absolute;top:-30%;right:-25%;
+        width:65%;aspect-ratio:1;border-radius:50%;
+        background:radial-gradient(circle,rgba(239,68,68,.32),transparent 60%);
+        filter:blur(50px);pointer-events:none;
+    }
+    .ad-card::after{
+        content:'';position:absolute;bottom:-40%;left:-25%;
+        width:60%;aspect-ratio:1;border-radius:50%;
+        background:radial-gradient(circle,rgba(245,158,11,.24),transparent 60%);
+        filter:blur(50px);pointer-events:none;
+    }
+    .ad-card > *{position:relative;z-index:1}
+    @@keyframes ad-rise{0%{opacity:0;transform:translateY(20px) scale(.985)}100%{opacity:1;transform:translateY(0) scale(1)}}
+
+    .ad-orb{
+        width:84px;height:84px;border-radius:22px;
+        display:inline-flex;align-items:center;justify-content:center;
+        background:linear-gradient(135deg,rgba(239,68,68,.26),rgba(245,158,11,.18));
+        border:1px solid rgba(248,113,113,.4);
+        color:#FCA5A5;font-size:2.4rem;
+        box-shadow:0 12px 32px -10px rgba(239,68,68,.55);
+        margin-bottom:1.25rem;
+        animation:ad-bob 4s ease-in-out infinite,ad-glow 2.4s ease-in-out infinite;
+    }
+    @@keyframes ad-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+    @@keyframes ad-glow{
+        0%,100%{box-shadow:0 12px 32px -10px rgba(239,68,68,.55)}
+        50%   {box-shadow:0 16px 44px -8px rgba(245,158,11,.65)}
+    }
+
+    .ad-eyebrow{
+        display:inline-block;color:#F5C56E;
+        font-size:.72rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+        margin-bottom:.6rem;
+    }
+    .ad-title{
+        font-family:'Plus Jakarta Sans',Inter,sans-serif;
+        font-size:1.85rem;font-weight:800;letter-spacing:-.025em;
+        margin:0 0 .65rem;color:#F8FAFC;
+    }
+    .ad-sub{color:rgba(248,250,252,.72);font-size:.92rem;line-height:1.55;max-width:380px;margin:0 auto 1.75rem}
+
+    .ad-actions{display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap}
+    .ad-btn{
+        position:relative;
+        display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+        padding:.78rem 1.4rem;
+        font-family:'Plus Jakarta Sans',Inter,sans-serif;
+        font-weight:700;font-size:.9rem;color:#fff;
+        background:linear-gradient(135deg,#8B5CF6 0%,#6366F1 100%);
+        border:0;border-radius:13px;text-decoration:none;cursor:pointer;overflow:hidden;
+        box-shadow:0 10px 30px -8px rgba(139,92,246,.55);
+        transition:transform .18s ease,box-shadow .25s ease,background .35s ease;
+    }
+    .ad-btn::after{
+        content:'';position:absolute;top:0;bottom:0;left:-40%;width:35%;
+        background:linear-gradient(110deg,transparent,rgba(255,255,255,.25),transparent);
+        transform:skewX(-18deg);pointer-events:none;transition:left .9s ease;
+    }
+    .ad-btn:hover{background:linear-gradient(135deg,#A78BFA 0%,#818CF8 100%);transform:translateY(-1px);color:#fff}
+    .ad-btn:hover::after{left:120%}
+    .ad-btn-ghost{
+        display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+        padding:.78rem 1.4rem;font-weight:600;font-size:.9rem;
+        color:rgba(248,250,252,.72);
+        background:rgba(255,255,255,.04);
+        border:1px solid rgba(255,255,255,.14);
+        border-radius:13px;text-decoration:none;cursor:pointer;
+        transition:all .22s ease;
+    }
+    .ad-btn-ghost:hover{color:#F8FAFC;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.22)}
+</style>
+}
+
+<div class="ad-wrap">
+    <div class="ad-card">
+        <div class="ad-orb"><i class="bi bi-shield-exclamation"></i></div>
+        <span class="ad-eyebrow">Restricted</span>
+        <h1 class="ad-title">Access Denied</h1>
+        <p class="ad-sub">
+            You don&rsquo;t have permission to view this page. If you believe this is a mistake, please contact your administrator.
+        </p>
+        <div class="ad-actions">
+            <a href="/Dashboard" class="ad-btn"><i class="bi bi-house"></i>Go to Dashboard</a>
+            <button onclick="history.back()" class="ad-btn-ghost"><i class="bi bi-arrow-left"></i>Go Back</button>
+        </div>
+    </div>
+</div>

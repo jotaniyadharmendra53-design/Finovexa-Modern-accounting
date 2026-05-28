@@ -1,0 +1,444 @@
+﻿@model InvoiceSaaS.Application.DTOs.Companies.SetupCompanyDto
+@using InvoiceSaaS.Domain.Enums
+@{
+    // Layout = "_Layout";
+    Layout = "_SetupLayout";
+    ViewData["Title"] = "Complete Company Setup";
+    ViewBag.ActiveMenu = "company";
+}
+
+@section Styles {
+<style>
+.setup-step { display:none; }
+.setup-step.active { display:block; }
+.step-indicator { display:flex; gap:0; align-items:center; margin-bottom:2rem; }
+.step-dot {
+    width:32px; height:32px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; font-size:.8rem; font-weight:700; flex-shrink:0;
+    background:var(--color-background-secondary); color:var(--color-text-secondary);
+    border:2px solid var(--color-border-secondary); transition:all .2s;
+
+}
+.step-dot.active { background:var(--primary,#4F46E5); color:#fff; border-color:var(--primary,#4F46E5); }
+.step-dot.done   { background:#10B981; color:#fff; border-color:#10B981; }
+.step-line { flex:1; height:2px; background:var(--color-border-secondary); margin:0 4px; }
+.step-line.done  { background:#10B981; }
+.tax-gst-section { display:none; }
+</style>
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h4 class="mb-1 fw-bold">Welcome! Let's set up your company</h4>
+        <p class="text-muted mb-0" style="font-size:.85rem;">
+            Complete this one-time setup to start using Finovexa, an AllUpNext product.
+        </p>
+    </div>
+</div>
+
+<!-- Step indicator -->
+<div class="step-indicator">
+    <div class="step-dot active" id="dot1">1</div>
+    <div class="step-line" id="line1"></div>
+    <div class="step-dot" id="dot2">2</div>
+    <div class="step-line" id="line2"></div>
+    <div class="step-dot" id="dot3">3</div>
+    <div class="step-line" id="line3"></div>
+    <div class="step-dot" id="dot4">4</div>
+</div>
+
+<form id="setupForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" id="setupCompanyId" value="@Model.CompanyId" />
+
+    <!-- ═══════════════════════════════════════════════════
+         STEP 1 — Company Logo + Name
+    ════════════════════════════════════════════════════ -->
+    <div class="setup-step active" id="step1">
+        <div class="row g-4">
+            <div class="col-xl-3 col-md-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header"><span class="card-title">Company Logo</span></div>
+                    <div class="card-body text-center d-flex flex-column align-items-center justify-content-center gap-3">
+                        <div id="logoWrap">
+                            <div id="logoPlaceholder"
+                                 style="width:110px;height:110px;border-radius:16px;
+                                        background:linear-gradient(135deg,#4F46E5,#7C3AED);
+                                        display:flex;align-items:center;justify-content:center;
+                                        font-size:44px;color:#fff;font-weight:700;">
+                                @(Model.Name?.Length > 0 ? Model.Name[0].ToString().ToUpper() : "C")
+                            </div>
+                            <img src="" id="logoPreview" class="d-none img-fluid rounded-3 shadow-sm"
+                                 style="max-height:110px;max-width:100%;object-fit:contain;" alt="Logo" />
+                        </div>
+                        <label class="btn btn-outline-primary btn-sm w-100 cursor-pointer" for="logoFile">
+                            <i class="bi bi-cloud-upload me-1"></i>Upload Logo
+                        </label>
+                        <input type="file" id="logoFile" accept=".jpg,.jpeg,.png,.webp,.svg" class="d-none" />
+                        <p class="text-muted" style="font-size:.72rem;">JPG, PNG, WebP or SVG. Max 5 MB.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-9 col-md-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header"><span class="card-title">Company Details</span></div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Company Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="setupName"
+                                       value="@Model.Name" maxlength="200" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" class="form-control" id="setupPhone"
+                                       value="@Model.Phone" maxlength="20" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Address</label>
+                                <input type="text" class="form-control" id="setupAddress"
+                                       value="@Model.Address" maxlength="500" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         STEP 2 — Currency, Timezone, Date Format
+    ════════════════════════════════════════════════════ -->
+    <div class="setup-step" id="step2">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header"><span class="card-title">Regional Settings</span></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Currency <span class="text-danger">*</span></label>
+                        <select class="form-select" id="setupCurrency">
+                            @foreach (var cur in new[]{
+                                ("INR","₹ INR — Indian Rupee"),
+                                ("USD","$ USD — US Dollar"),
+                                ("EUR","€ EUR — Euro"),
+                                ("GBP","£ GBP — British Pound"),
+                                ("AUD","A$ AUD — Australian Dollar"),
+                                ("CAD","C$ CAD — Canadian Dollar"),
+                                ("SGD","S$ SGD — Singapore Dollar"),
+                                ("AED","AED — UAE Dirham"),
+                                ("JPY","¥ JPY — Japanese Yen"),
+                                ("CNY","¥ CNY — Chinese Yuan")
+                            })
+                            {
+                                <option value="@cur.Item1" selected="@(cur.Item1 == (Model.CurrencyCode ?? "INR") ? "selected" : null)">
+                                    @cur.Item2
+                                </option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Timezone</label>
+                        <select class="form-select" id="setupTimezone">
+                            @foreach (var tz in new[]{
+                                ("Asia/Kolkata","Asia/Kolkata (IST +5:30)"),
+                                ("America/New_York","America/New_York (EST -5:00)"),
+                                ("America/Chicago","America/Chicago (CST -6:00)"),
+                                ("America/Los_Angeles","America/Los_Angeles (PST -8:00)"),
+                                ("Europe/London","Europe/London (GMT +0:00)"),
+                                ("Europe/Paris","Europe/Paris (CET +1:00)"),
+                                ("Asia/Dubai","Asia/Dubai (GST +4:00)"),
+                                ("Asia/Singapore","Asia/Singapore (SGT +8:00)"),
+                                ("Asia/Tokyo","Asia/Tokyo (JST +9:00)"),
+                                ("Australia/Sydney","Australia/Sydney (AEDT +11:00)")
+                            })
+                            {
+                                <option value="@tz.Item1" selected="@(tz.Item1 == (Model.Timezone ?? "Asia/Kolkata") ? "selected" : null)">
+                                    @tz.Item2
+                                </option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Date Format</label>
+                        <select class="form-select" id="setupDateFormat">
+                            @foreach (var fmt in new[]{
+                                ("dd/MM/yyyy","dd/MM/yyyy (31/12/2025)"),
+                                ("MM/dd/yyyy","MM/dd/yyyy (12/31/2025)"),
+                                ("yyyy-MM-dd","yyyy-MM-dd (2025-12-31)"),
+                                ("dd-MMM-yyyy","dd-MMM-yyyy (31-Dec-2025)"),
+                                ("dd MMM yyyy","dd MMM yyyy (31 Dec 2025)")
+                            })
+                            {
+                                <option value="@fmt.Item1" selected="@(fmt.Item1 == (Model.DateFormat ?? "dd/MM/yyyy") ? "selected" : null)">
+                                    @fmt.Item2
+                                </option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         STEP 3 — Tax Configuration
+    ════════════════════════════════════════════════════ -->
+    <div class="setup-step" id="step3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header"><span class="card-title">Tax Configuration</span></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Tax System <span class="text-danger">*</span></label>
+                        <select class="form-select" id="setupTaxType" onchange="onTaxTypeChange()">
+                            <option value="0" selected="@(Model.TaxType == TaxType.GST    ? "selected" : null)">GST — India</option>
+                            <option value="1" selected="@(Model.TaxType == TaxType.VAT    ? "selected" : null)">VAT — EU / International</option>
+                            <option value="2" selected="@(Model.TaxType == TaxType.SalesTax ? "selected" : null)">Sales Tax — USA</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Tax Number</label>
+                        <input type="text" class="form-control" id="setupTaxNumber"
+                               value="@Model.TaxNumber" maxlength="100"
+                               placeholder="GSTIN / VAT Number" />
+                        <div class="form-text" id="taxNumberHint">
+                            India: 15-digit GSTIN (e.g. 27AAAAA0000A1Z5)
+                        </div>
+                    </div>
+
+                    <!-- India GST sub-type — only shown when GST is selected -->
+                    <div class="col-md-6 tax-gst-section" id="gstSection">
+                        <label class="form-label">GST Type</label>
+                        <select class="form-select" id="setupGstType">
+                            <option value="0">CGST + SGST (Intra-state transactions)</option>
+                            <option value="1">IGST only (Inter-state transactions)</option>
+                        </select>
+                        <div class="form-text">
+                            Choose CGST+SGST for sales within your state, IGST for sales to other states.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         STEP 4 — New Password
+    ════════════════════════════════════════════════════ -->
+    <div class="setup-step" id="step4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header"><span class="card-title">Set Your Password</span></div>
+            <div class="card-body">
+                <div class="alert border-0 mb-4"
+                     style="background:#FFFBEB;border-left:4px solid #F59E0B!important;border-radius:8px;">
+                    <div class="d-flex gap-2">
+                        <i class="bi bi-shield-lock-fill text-warning mt-1"></i>
+                        <div>
+                            <strong>Change your temporary password.</strong>
+                            Your account was created with a temporary password sent via email.
+                            Please set a new secure password to continue.
+                        </div>
+                    </div>
+                </div>
+                <div class="row g-3" style="max-width:480px;">
+                    <div class="col-12">
+                        <label class="form-label">New Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="setupNewPwd"
+                                   placeholder="Min 8 characters" minlength="8" />
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="togglePwd('setupNewPwd','eyeIcon1')">
+                                <i class="bi bi-eye" id="eyeIcon1"></i>
+                            </button>
+                        </div>
+                        <div class="form-text" id="pwdStrength"></div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="setupConfirmPwd"
+                                   placeholder="Repeat new password" />
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="togglePwd('setupConfirmPwd','eyeIcon2')">
+                                <i class="bi bi-eye" id="eyeIcon2"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation buttons -->
+    <div class="d-flex justify-content-between mt-4">
+        <button type="button" class="btn btn-outline-secondary" id="btnBack"
+                style="display:none;" onclick="goStep(-1)">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </button>
+        <div class="ms-auto">
+            <button type="button" class="btn btn-primary px-4" id="btnNext" onclick="goStep(1)">
+                Next <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+            <button type="button" class="btn btn-success px-4" id="btnFinish"
+                    style="display:none;" onclick="submitSetup()">
+                <i class="bi bi-check-circle me-1"></i>Complete Setup
+            </button>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+<script>
+var currentStep = 1;
+var totalSteps  = 4;
+
+function goStep(dir) {
+    if (dir === 1 && !validateStep(currentStep)) return;
+    var oldStep = currentStep;
+    currentStep += dir;
+    if (currentStep < 1) currentStep = 1;
+    if (currentStep > totalSteps) currentStep = totalSteps;
+    document.getElementById('step' + oldStep).classList.remove('active');
+    document.getElementById('step' + currentStep).classList.add('active');
+    updateIndicators(oldStep, currentStep, dir);
+    document.getElementById('btnBack').style.display  = currentStep > 1 ? '' : 'none';
+    document.getElementById('btnNext').style.display  = currentStep < totalSteps ? '' : 'none';
+    document.getElementById('btnFinish').style.display = currentStep === totalSteps ? '' : 'none';
+    if (currentStep === 3) onTaxTypeChange(); // init GST section visibility
+}
+
+function updateIndicators(old, cur, dir) {
+    if (dir === 1) {
+        document.getElementById('dot' + old).className = 'step-dot done';
+        document.getElementById('dot' + old).innerHTML = '<i class="bi bi-check-lg" style="font-size:.75rem;"></i>';
+        if (old < totalSteps) {
+            document.getElementById('line' + old).className = 'step-line done';
+        }
+    } else {
+        document.getElementById('dot' + cur).className = 'step-dot active';
+        document.getElementById('dot' + cur).innerHTML = cur;
+        if (cur < totalSteps) {
+            document.getElementById('line' + cur).className = 'step-line';
+        }
+    }
+    document.getElementById('dot' + cur).className = 'step-dot active';
+    if (dir === -1) document.getElementById('dot' + cur).innerHTML = cur;
+}
+
+function validateStep(step) {
+    if (step === 1) {
+        var name = document.getElementById('setupName').value.trim();
+        if (!name) { toastError('Company name is required.'); return false; }
+    }
+    if (step === 4) {
+        var pwd = document.getElementById('setupNewPwd').value;
+        var confirm = document.getElementById('setupConfirmPwd').value;
+        if (!pwd || pwd.length < 8) { toastError('Password must be at least 8 characters.'); return false; }
+        if (pwd !== confirm) { toastError('Passwords do not match.'); return false; }
+    }
+    return true;
+}
+
+function onTaxTypeChange() {
+    var taxType = document.getElementById('setupTaxType').value;
+    var gstSec  = document.getElementById('gstSection');
+    var hint    = document.getElementById('taxNumberHint');
+    if (taxType === '0') {
+        gstSec.style.display = '';
+        hint.textContent = 'India: 15-digit GSTIN (e.g. 27AAAAA0000A1Z5)';
+    } else if (taxType === '1') {
+        gstSec.style.display = 'none';
+        hint.textContent = 'EU/International VAT number';
+    } else {
+        gstSec.style.display = 'none';
+        hint.textContent = 'US State Tax ID / EIN';
+    }
+}
+
+function togglePwd(inputId, iconId) {
+    var inp = document.getElementById(inputId);
+    var ico = document.getElementById(iconId);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+    ico.className = inp.type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
+}
+
+document.getElementById('setupNewPwd').addEventListener('input', function() {
+    var v = this.value, strength = 0, msg = '', color = '';
+    if (v.length >= 8)  strength++;
+    if (/[A-Z]/.test(v)) strength++;
+    if (/[0-9]/.test(v)) strength++;
+    if (/[^A-Za-z0-9]/.test(v)) strength++;
+    if (strength <= 1) { msg='Weak'; color='#EF4444'; }
+    else if (strength === 2) { msg='Fair'; color='#F59E0B'; }
+    else if (strength === 3) { msg='Good'; color='#10B981'; }
+    else { msg='Strong'; color='#059669'; }
+    document.getElementById('pwdStrength').innerHTML =
+        v.length > 0 ? '<span style="color:'+color+';font-weight:600;">'+msg+'</span>' : '';
+});
+
+$('#logoFile').on('change', function() {
+    var file = this.files[0];
+    if (!file) return;
+    if (file.size > 5*1024*1024) { toastError('File too large. Max 5 MB.'); return; }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        $('#logoPlaceholder').addClass('d-none');
+        $('#logoPreview').attr('src', e.target.result).removeClass('d-none');
+    };
+    reader.readAsDataURL(file);
+    // Upload logo
+    var fd = new FormData();
+    fd.append('file', file);
+    fd.append('__RequestVerificationToken', getCsrfToken());
+    $.ajax({
+        url:'/Company/UploadLogo', type:'POST', data:fd, processData:false, contentType:false
+    }).done(function(r){ if(r.success) toastSuccess('Logo uploaded!'); else toastError(r.message); })
+      .fail(function(){ toastError('Logo upload failed.'); });
+});
+
+function submitSetup() {
+    if (!validateStep(4)) return;
+    var taxType = parseInt(document.getElementById('setupTaxType').value);
+    var gstType = taxType === 0
+        ? parseInt(document.getElementById('setupGstType').value)
+        : null;
+    var dto = {
+        companyId:          document.getElementById('setupCompanyId').value,
+        name:               document.getElementById('setupName').value.trim(),
+        phone:              document.getElementById('setupPhone').value.trim() || null,
+        address:            document.getElementById('setupAddress').value.trim() || null,
+        taxNumber:          document.getElementById('setupTaxNumber').value.trim() || null,
+        currencyCode:       document.getElementById('setupCurrency').value,
+        timezone:           document.getElementById('setupTimezone').value,
+        dateFormat:         document.getElementById('setupDateFormat').value,
+        taxType:            taxType,
+        gstType:            gstType,
+        newPassword:        document.getElementById('setupNewPwd').value,
+        confirmNewPassword: document.getElementById('setupConfirmPwd').value
+    };
+    var $btn = $('#btnFinish').prop('disabled', true)
+        .html('<span class="spinner-border spinner-border-sm me-1"></span>Saving…');
+    $.ajax({
+        url:'/Company/Setup', type:'POST', contentType:'application/json',
+        headers:{'RequestVerificationToken': getCsrfToken()},
+        data: JSON.stringify(dto)
+    }).done(function(r) {
+        if (r.success) {
+            toastSuccess('Setup complete! Taking you to your dashboard…');
+            setTimeout(function(){ window.location.href = '/Dashboard'; }, 1500);
+        } else {
+            toastError(r.message || (r.errors && r.errors[0]) || 'Setup failed.');
+            $btn.prop('disabled',false)
+                .html('<i class="bi bi-check-circle me-1"></i>Complete Setup');
+        }
+    }).fail(function() {
+        toastError('Server error. Please try again.');
+        $btn.prop('disabled',false)
+            .html('<i class="bi bi-check-circle me-1"></i>Complete Setup');
+    });
+}
+
+// Init — hide back button on load
+document.getElementById('btnBack').style.display = 'none';
+</script>
+}

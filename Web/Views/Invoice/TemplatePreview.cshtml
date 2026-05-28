@@ -1,0 +1,328 @@
+﻿@{
+    Layout = null;
+    var tpl = Context.Request.Query["tpl"].ToString().ToLower();
+    // Sample data for preview
+    var companyName  = "Acme Solutions Ltd.";
+    var companyEmail = "billing@acme.com";
+    var companyPhone = "+1 (555) 100-2000";
+    var companyAddr  = "100 Business Ave, New York, NY 10001";
+    var clientName   = "TechCorp Inc.";
+    var clientEmail  = "accounts@techcorp.com";
+    var clientAddr   = "200 Client Street, San Francisco, CA 94102";
+    var invNumber    = "INV-2026-00001";
+    var issueDate    = "01 Mar 2026";
+    var dueDate      = "31 Mar 2026";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Preview</title>
+
+@if (tpl == "classic")
+{
+    <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI',Arial,sans-serif; font-size:12px; color:#1F2937; background:#fff; }
+    .page { padding:40px 48px; }
+    .header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:24px; border-bottom:3px solid #3B82F6; margin-bottom:28px; }
+    .company-name { font-size:20px; font-weight:800; color:#3B82F6; }
+    .company-sub  { font-size:11px; color:#6B7280; margin-top:4px; }
+    .inv-right    { text-align:right; }
+    .inv-label    { font-size:26px; font-weight:800; color:#3B82F6; letter-spacing:-1px; }
+    .inv-num      { font-size:11px; color:#6B7280; margin-top:3px; }
+    .inv-meta     { font-size:11px; color:#374151; margin-top:2px; }
+    .addresses    { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:28px; }
+    .addr-label   { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#9CA3AF; margin-bottom:5px; }
+    .addr-name    { font-weight:700; font-size:13px; color:#111827; }
+    .addr-detail  { color:#6B7280; font-size:11px; line-height:1.6; margin-top:2px; }
+    table         { width:100%; border-collapse:collapse; margin-bottom:20px; }
+    thead tr      { background:#F9FAFB; }
+    thead th      { padding:9px 10px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#6B7280; text-align:left; border-bottom:2px solid #E5E7EB; }
+    th.r,td.r     { text-align:right; }
+    tbody td      { padding:9px 10px; border-bottom:1px solid #F3F4F6; color:#374151; font-size:12px; }
+    .totals       { display:flex; justify-content:flex-end; }
+    .totals-box   { width:220px; }
+    .t-row        { display:flex; justify-content:space-between; padding:5px 0; font-size:12px; color:#6B7280; }
+    .t-total      { font-size:15px; font-weight:800; color:#3B82F6; border-top:2px solid #3B82F6; padding-top:8px; margin-top:4px; }
+    .footer       { margin-top:32px; padding-top:16px; border-top:1px solid #E5E7EB; font-size:10px; color:#9CA3AF; text-align:center; }
+    </style>
+}
+else if (tpl == "modern")
+{
+    <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI',Arial,sans-serif; font-size:12px; color:#1F2937; background:#fff; }
+    .page { padding:0; }
+    .header { background:#111827; color:#fff; padding:32px 40px; display:flex; justify-content:space-between; align-items:center; }
+    .company-name { font-size:20px; font-weight:800; color:#fff; letter-spacing:-.5px; }
+    .company-sub  { font-size:10px; color:rgba(255,255,255,.5); margin-top:3px; }
+    .inv-label    { font-size:28px; font-weight:900; color:#F59E0B; letter-spacing:-1px; }
+    .inv-num      { font-size:11px; color:rgba(255,255,255,.6); margin-top:3px; text-align:right; }
+    .inv-meta     { font-size:11px; color:rgba(255,255,255,.6); text-align:right; margin-top:1px; }
+    .body-wrap    { padding:32px 40px; }
+    .addresses    { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:28px; }
+    .addr-label   { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:#F59E0B; margin-bottom:5px; }
+    .addr-name    { font-weight:700; font-size:13px; }
+    .addr-detail  { color:#6B7280; font-size:11px; line-height:1.6; margin-top:2px; }
+    table         { width:100%; border-collapse:collapse; margin-bottom:20px; }
+    thead tr      { background:#111827; }
+    thead th      { padding:9px 10px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#F59E0B; text-align:left; }
+    th.r,td.r     { text-align:right; }
+    tbody td      { padding:9px 10px; border-bottom:1px solid #F3F4F6; color:#374151; font-size:12px; }
+    tbody tr:nth-child(even) td { background:#F9FAFB; }
+    .totals       { display:flex; justify-content:flex-end; }
+    .totals-box   { width:220px; }
+    .t-row        { display:flex; justify-content:space-between; padding:5px 0; font-size:12px; color:#6B7280; }
+    .t-total      { font-size:15px; font-weight:800; color:#111827; background:#F59E0B; padding:8px 10px; border-radius:6px; margin-top:6px; }
+    .footer       { margin:0 40px 20px; padding-top:16px; border-top:1px solid #E5E7EB; font-size:10px; color:#9CA3AF; text-align:center; }
+    </style>
+}
+else if (tpl == "minimal")
+{
+    <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:Georgia,serif; font-size:12px; color:#1F2937; background:#fff; }
+    .page { padding:48px 56px; }
+    .header { margin-bottom:40px; }
+    .company-name { font-size:22px; font-weight:700; color:#111827; letter-spacing:-.5px; }
+    .company-sub  { font-size:11px; color:#9CA3AF; margin-top:3px; font-style:italic; }
+    .inv-row      { display:flex; justify-content:space-between; align-items:flex-end; margin-top:32px; padding-bottom:16px; border-bottom:1px solid #111827; }
+    .inv-label    { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.15em; color:#6B7280; }
+    .inv-num      { font-size:18px; font-weight:700; color:#111827; margin-top:4px; }
+    .inv-meta     { text-align:right; font-size:11px; color:#6B7280; line-height:1.8; }
+    .addresses    { display:grid; grid-template-columns:1fr 1fr; gap:32px; margin:28px 0; }
+    .addr-label   { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:#9CA3AF; margin-bottom:6px; }
+    .addr-name    { font-weight:700; font-size:12px; }
+    .addr-detail  { color:#6B7280; font-size:11px; line-height:1.7; margin-top:2px; }
+    table         { width:100%; border-collapse:collapse; margin-bottom:20px; }
+    thead th      { padding:8px 0; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:#9CA3AF; text-align:left; border-bottom:1px solid #E5E7EB; }
+    th.r,td.r     { text-align:right; }
+    tbody td      { padding:10px 0; border-bottom:1px solid #F9FAFB; color:#374151; font-size:12px; }
+    .totals       { display:flex; justify-content:flex-end; }
+    .totals-box   { width:200px; }
+    .t-row        { display:flex; justify-content:space-between; padding:4px 0; font-size:11px; color:#6B7280; }
+    .t-total      { font-size:16px; font-weight:700; color:#111827; border-top:1px solid #111827; padding-top:8px; margin-top:4px; }
+    .footer       { margin-top:40px; font-size:10px; color:#9CA3AF; font-style:italic; }
+    </style>
+}
+else
+{
+    /* elegant */
+    <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI',Arial,sans-serif; font-size:12px; color:#1F2937; background:#fff; }
+    .page { padding:0; }
+    .header { background:#fff; padding:32px 40px 0; display:flex; justify-content:space-between; }
+    .accent-bar { height:4px; background:linear-gradient(90deg,#0D9488,#06B6D4); }
+    .company-name { font-size:20px; font-weight:800; color:#0D9488; }
+    .company-sub  { font-size:10px; color:#6B7280; margin-top:3px; }
+    .inv-label    { font-size:26px; font-weight:800; color:#111827; letter-spacing:-1px; text-align:right; }
+    .inv-num      { font-size:11px; color:#6B7280; margin-top:3px; text-align:right; }
+    .inv-meta     { font-size:11px; color:#6B7280; text-align:right; margin-top:1px; }
+    .body-wrap    { padding:24px 40px; }
+    .addresses    { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px; background:#F0FDFA; border-radius:8px; padding:16px; }
+    .addr-label   { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:#0D9488; margin-bottom:5px; }
+    .addr-name    { font-weight:700; font-size:13px; }
+    .addr-detail  { color:#6B7280; font-size:11px; line-height:1.6; margin-top:2px; }
+    table         { width:100%; border-collapse:collapse; margin-bottom:20px; }
+    thead th      { padding:9px 10px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#0D9488; text-align:left; border-bottom:2px solid #0D9488; }
+    th.r,td.r     { text-align:right; }
+    tbody td      { padding:9px 10px; border-bottom:1px solid #F0FDFA; color:#374151; font-size:12px; }
+    .totals       { display:flex; justify-content:flex-end; }
+    .totals-box   { width:220px; }
+    .t-row        { display:flex; justify-content:space-between; padding:5px 0; font-size:12px; color:#6B7280; }
+    .t-total      { font-size:15px; font-weight:800; color:#fff; background:#0D9488; padding:8px 10px; border-radius:6px; margin-top:6px; }
+    .footer       { margin:0 40px 20px; padding-top:12px; border-top:1px solid #CCFBF1; font-size:10px; color:#9CA3AF; text-align:center; }
+    </style>
+}
+</head>
+<body>
+
+@if (tpl == "classic")
+{
+    <div class="page">
+        <div class="header">
+            <div>
+                <div class="company-name">@companyName</div>
+                <div class="company-sub">@companyAddr<br/>@companyEmail · @companyPhone</div>
+            </div>
+            <div class="inv-right">
+                <div class="inv-label">INVOICE</div>
+                <div class="inv-num">@invNumber</div>
+                <div class="inv-meta">Issue: @issueDate</div>
+                <div class="inv-meta">Due: @dueDate</div>
+            </div>
+        </div>
+        <div class="addresses">
+            <div>
+                <div class="addr-label">Billed To</div>
+                <div class="addr-name">@clientName</div>
+                <div class="addr-detail">@clientAddr<br/>@clientEmail</div>
+            </div>
+            <div></div>
+        </div>
+        <table>
+            <thead><tr>
+                <th>Description</th><th class="r">Qty</th><th class="r">Unit Price</th><th class="r">Amount</th>
+            </tr></thead>
+            <tbody>
+                <tr><td>Web Development Services</td><td class="r">20</td><td class="r">100.00</td><td class="r">2,000.00</td></tr>
+                <tr><td>UI/UX Design</td><td class="r">8</td><td class="r">150.00</td><td class="r">1,200.00</td></tr>
+            </tbody>
+        </table>
+        <div class="totals">
+            <div class="totals-box">
+                <div class="t-row"><span>Subtotal</span><span>3,200.00</span></div>
+                <div class="t-row"><span>Tax (18%)</span><span>576.00</span></div>
+                <div class="t-row t-total"><span>Total</span><span>USD 3,776.00</span></div>
+            </div>
+        </div>
+        <div class="footer">Thank you for your business — @companyName</div>
+    </div>
+}
+else if (tpl == "modern")
+{
+    <div class="page">
+        <div class="header">
+            <div>
+                <div class="company-name">@companyName</div>
+                <div class="company-sub">@companyEmail · @companyPhone</div>
+            </div>
+            <div>
+                <div class="inv-label">INVOICE</div>
+                <div class="inv-num">@invNumber</div>
+                <div class="inv-meta">Due: @dueDate</div>
+            </div>
+        </div>
+        <div class="body-wrap">
+            <div class="addresses">
+                <div>
+                    <div class="addr-label">Billed To</div>
+                    <div class="addr-name">@clientName</div>
+                    <div class="addr-detail">@clientAddr<br/>@clientEmail</div>
+                </div>
+                <div>
+                    <div class="addr-label">Invoice Period</div>
+                    <div class="addr-name">March 2026</div>
+                    <div class="addr-detail">Issue: @issueDate<br/>Due: @dueDate</div>
+                </div>
+            </div>
+            <table>
+                <thead><tr>
+                    <th>Description</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th>
+                </tr></thead>
+                <tbody>
+                    <tr><td>Web Development Services</td><td class="r">20</td><td class="r">100.00</td><td class="r">2,000.00</td></tr>
+                    <tr><td>UI/UX Design</td><td class="r">8</td><td class="r">150.00</td><td class="r">1,200.00</td></tr>
+                </tbody>
+            </table>
+            <div class="totals">
+                <div class="totals-box">
+                    <div class="t-row"><span>Subtotal</span><span>3,200.00</span></div>
+                    <div class="t-row"><span>Tax (18%)</span><span>576.00</span></div>
+                    <div class="t-row t-total"><span>TOTAL DUE</span><span>USD 3,776.00</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="footer">@companyName · @companyAddr</div>
+    </div>
+}
+else if (tpl == "minimal")
+{
+    <div class="page">
+        <div class="header">
+            <div class="company-name">@companyName</div>
+            <div class="company-sub">@companyAddr · @companyEmail</div>
+            <div class="inv-row">
+                <div>
+                    <div class="inv-label">Invoice</div>
+                    <div class="inv-num">@invNumber</div>
+                </div>
+                <div class="inv-meta">
+                    Issued: @issueDate<br/>
+                    Due: @dueDate
+                </div>
+            </div>
+        </div>
+        <div class="addresses">
+            <div>
+                <div class="addr-label">Bill To</div>
+                <div class="addr-name">@clientName</div>
+                <div class="addr-detail">@clientAddr<br/>@clientEmail</div>
+            </div>
+            <div>
+                <div class="addr-label">From</div>
+                <div class="addr-name">@companyName</div>
+                <div class="addr-detail">@companyAddr<br/>@companyEmail</div>
+            </div>
+        </div>
+        <table>
+            <thead><tr>
+                <th>Description</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th>
+            </tr></thead>
+            <tbody>
+                <tr><td>Web Development Services</td><td class="r">20</td><td class="r">100.00</td><td class="r">2,000.00</td></tr>
+                <tr><td>UI/UX Design</td><td class="r">8</td><td class="r">150.00</td><td class="r">1,200.00</td></tr>
+            </tbody>
+        </table>
+        <div class="totals">
+            <div class="totals-box">
+                <div class="t-row"><span>Subtotal</span><span>3,200.00</span></div>
+                <div class="t-row"><span>Tax (18%)</span><span>576.00</span></div>
+                <div class="t-row t-total"><span>Total</span><span>USD 3,776.00</span></div>
+            </div>
+        </div>
+        <div class="footer">Payment due by @dueDate. Thank you.</div>
+    </div>
+}
+else
+{
+    /* elegant */
+    <div class="accent-bar"></div>
+    <div class="header">
+        <div>
+            <div class="company-name">@companyName</div>
+            <div class="company-sub">@companyEmail · @companyPhone</div>
+        </div>
+        <div>
+            <div class="inv-label">INVOICE</div>
+            <div class="inv-num">@invNumber</div>
+            <div class="inv-meta">Issue: @issueDate · Due: @dueDate</div>
+        </div>
+    </div>
+    <div class="body-wrap">
+        <div class="addresses">
+            <div>
+                <div class="addr-label">Billed To</div>
+                <div class="addr-name">@clientName</div>
+                <div class="addr-detail">@clientAddr<br/>@clientEmail</div>
+            </div>
+            <div>
+                <div class="addr-label">Payment Info</div>
+                <div class="addr-name">USD 3,776.00</div>
+                <div class="addr-detail">Due by @dueDate</div>
+            </div>
+        </div>
+        <table>
+            <thead><tr>
+                <th>Description</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th>
+            </tr></thead>
+            <tbody>
+                <tr><td>Web Development Services</td><td class="r">20</td><td class="r">100.00</td><td class="r">2,000.00</td></tr>
+                <tr><td>UI/UX Design</td><td class="r">8</td><td class="r">150.00</td><td class="r">1,200.00</td></tr>
+            </tbody>
+        </table>
+        <div class="totals">
+            <div class="totals-box">
+                <div class="t-row"><span>Subtotal</span><span>3,200.00</span></div>
+                <div class="t-row"><span>Tax (18%)</span><span>576.00</span></div>
+                <div class="t-row t-total"><span>TOTAL</span><span>USD 3,776.00</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="footer">@companyName · Thank you for your business</div>
+}
+
+</body>
+</html>

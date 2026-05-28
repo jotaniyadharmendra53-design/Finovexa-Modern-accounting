@@ -1,0 +1,179 @@
+﻿@{
+    ViewData["Title"] = "Profit & Loss";
+    ViewBag.ActiveMenu = "accounting";
+}
+
+@section Styles {
+<style>
+.stat-card { border-radius:12px;padding:20px 24px; }
+.stat-label { font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;opacity:.7; }
+.stat-value { font-size:1.75rem;font-weight:700;line-height:1.2;margin-top:4px; }
+.line-bar { height:6px;border-radius:3px;background:#E5E7EB;overflow:hidden;margin-top:6px; }
+.line-bar-fill { height:100%;border-radius:3px;transition:width .5s ease; }
+#spinner { display:none; }
+.locked-banner { background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;
+                 padding:8px 14px;font-size:.82rem;color:#92400E;display:none; }
+</style>
+}
+
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Profit &amp; Loss</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/Accounting">Accounting</a></li>
+            <li class="breadcrumb-item active">P&amp;L</li>
+        </ol></nav>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        @await Html.PartialAsync("_FYPicker")
+        <button class="btn btn-sm btn-outline-secondary" onclick="exportCsv()">
+            <i class="bi bi-download me-1"></i>Export
+        </button>
+    </div>
+</div>
+
+<!-- Locked year banner -->
+<div class="locked-banner mb-3" id="lockedBanner">
+    <i class="bi bi-lock-fill me-2"></i>
+    <strong>This fiscal year is locked.</strong> All data is read-only.
+</div>
+
+<div id="spinner" class="text-center py-5">
+    <div class="spinner-border text-primary" style="width:2rem;height:2rem;"></div>
+    <div class="text-muted small mt-2">Loading report…</div>
+</div>
+
+<div id="reportContent" style="display:none">
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="stat-card border-0 shadow-sm" style="background:#F0FDF4">
+                <div class="stat-label text-success">Total Revenue</div>
+                <div class="stat-value text-success" id="sRevenue">₹0</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card border-0 shadow-sm" style="background:#FFF1F2">
+                <div class="stat-label text-danger">Total Expenses</div>
+                <div class="stat-value text-danger" id="sExpenses">₹0</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card border-0 shadow-sm" id="profitCard" style="background:#EFF6FF">
+                <div class="stat-label" id="profitLabel">Net Profit</div>
+                <div class="stat-value" id="sProfit">₹0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent border-0 pb-0 pt-3">
+                    <h6 class="fw-600 mb-0">
+                        <i class="bi bi-graph-up-arrow text-success me-2"></i>Revenue Breakdown
+                    </h6>
+                </div>
+                <div class="card-body" id="revenueBreakdown">
+                    <p class="text-muted small text-center py-3">No data</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent border-0 pb-0 pt-3">
+                    <h6 class="fw-600 mb-0">
+                        <i class="bi bi-graph-down-arrow text-danger me-2"></i>Expense Breakdown
+                    </h6>
+                </div>
+                <div class="card-body" id="expenseBreakdown">
+                    <p class="text-muted small text-center py-3">No data</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="mt-3 text-muted small text-center" id="periodLabel"></div>
+</div>
+
+@section Scripts {
+<script>
+var reportData = null;
+function fmt(n){ return '₹' + parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function loadReport(){
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('reportContent').style.display = 'none';
+
+    var url = '/Accounting/PnL' + (window.getFYFilter ? window.getFYFilter() : '?year=' + new Date().getFullYear());
+
+    $.get(url, function(res){
+        document.getElementById('spinner').style.display = 'none';
+        if(!res.success){ toastError(res.message||'Failed to load report.'); return; }
+        reportData = res.data;
+        renderReport(reportData);
+        document.getElementById('reportContent').style.display = 'block';
+
+        // Show locked banner if FY is locked
+        var isLocked = window.activeFY && window.activeFY.status === 1;
+        document.getElementById('lockedBanner').style.display = isLocked ? 'block' : 'none';
+    }).fail(function(){
+        document.getElementById('spinner').style.display = 'none';
+        toastError('Failed to load report.');
+    });
+}
+
+function renderReport(d){
+    var profit = d.netProfit || (d.totalRevenue - d.totalExpenses);
+    var isLoss = profit < 0;
+    document.getElementById('sRevenue').textContent  = fmt(d.totalRevenue);
+    document.getElementById('sExpenses').textContent = fmt(d.totalExpenses);
+    document.getElementById('sProfit').textContent   = fmt(profit);
+    document.getElementById('profitLabel').textContent = isLoss ? 'Net Loss' : 'Net Profit';
+    var card = document.getElementById('profitCard');
+    card.style.background = isLoss ? '#FFF1F2' : '#EFF6FF';
+    document.getElementById('sProfit').className = 'stat-value ' + (isLoss ? 'text-danger' : 'text-primary');
+    if(d.periodLabel) document.getElementById('periodLabel').textContent = 'Period: ' + d.periodLabel;
+    renderLines('revenueBreakdown', d.revenueLines||[], d.totalRevenue, '#16A34A', '#22C55E');
+    renderLines('expenseBreakdown', d.expenseLines||[], d.totalExpenses, '#DC2626', '#EF4444');
+}
+
+function renderLines(cId, lines, total, color, barColor){
+    var el = document.getElementById(cId);
+    if(!lines.length){ el.innerHTML='<p class="text-muted small text-center py-3">No data for this period.</p>'; return; }
+    var html='<table class="table table-sm mb-0">';
+    lines.forEach(function(l){
+        var pct = total > 0 ? Math.round(l.amount/total*100) : 0;
+        html+='<tr><td style="width:40%">'+(l.label||l.category||'—')+'</td>'
+            +'<td style="text-align:right;font-weight:600;color:'+color+'">'+fmt(l.amount)+'</td>'
+            +'<td style="width:35%;padding-left:12px"><div class="d-flex align-items-center gap-2">'
+            +'<div class="line-bar flex-grow-1"><div class="line-bar-fill" style="width:'+pct+'%;background:'+barColor+'"></div></div>'
+            +'<span class="text-muted small" style="min-width:32px">'+pct+'%</span></div></td></tr>';
+    });
+    html+='<tr style="border-top:2px solid #E5E7EB"><td class="fw-600 pt-2">Total</td>'
+        +'<td class="text-end fw-600 pt-2" style="color:'+color+'">'+fmt(total)+'</td><td></td></tr></table>';
+    el.innerHTML = html;
+}
+
+function exportCsv(){
+    if(!reportData){ toastError('Load the report first.'); return; }
+    var rows=[['Category','Amount']];
+    rows.push(['--- REVENUE ---','']);
+    (reportData.revenueLines||[]).forEach(function(l){ rows.push([l.label||l.category,l.amount]); });
+    rows.push(['Total Revenue',reportData.totalRevenue]);
+    rows.push(['--- EXPENSES ---','']);
+    (reportData.expenseLines||[]).forEach(function(l){ rows.push([l.label||l.category,l.amount]); });
+    rows.push(['Total Expenses',reportData.totalExpenses]);
+    rows.push(['Net Profit / Loss',reportData.netProfit||(reportData.totalRevenue-reportData.totalExpenses)]);
+    var csv=rows.map(function(r){ return r.map(function(c){ return '"'+c+'"'; }).join(','); }).join('\n');
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download='PnL_'+(window.activeFY?window.activeFY.label:'Report')+'.csv';
+    a.click();
+}
+
+// Listen for FY picker changes
+document.addEventListener('fy:changed', function(){ loadReport(); });
+
+$(function(){ loadReport(); });
+</script>
+}

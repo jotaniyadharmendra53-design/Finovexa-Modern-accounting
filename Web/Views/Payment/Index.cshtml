@@ -1,0 +1,731 @@
+﻿@model IEnumerable<PaymentDto>
+@{
+    var perms = ViewBag.Permissions as HashSet<string> ?? new HashSet<string>();
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    bool Can(string c) => isSA || perms.Contains(c);
+    ViewData["Title"] = "Payments";
+    ViewBag.ActiveMenu = "payments";
+    int currentPage = (int)(ViewBag.Page ?? 1);
+    int pageSize = (int)(ViewBag.PageSize ?? 20);
+    int totalCount = (int)(ViewBag.TotalCount ?? 0);
+    int totalPages = (int)(ViewBag.TotalPages ?? 1);
+    var activeSearch = ViewBag.Search ?? "";
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h4 class="mb-1">Payments</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item active">Payments</li>
+            </ol>
+        </nav>
+    </div>
+    @if (Can("payments.create"))
+    {
+        <button class="btn btn-primary" onclick="openModal()">
+            <i class="bi bi-plus-lg me-1"></i> Record Payment
+        </button>
+    }
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm border-start border-success border-3">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Total Received (Inbound)</div>
+                <div class="fw-700 fs-4 text-success">
+                    ₹@Model.Where(p => p.Direction == 0).Sum(p => p.Amount).ToString("N2")
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm border-start border-danger border-3">
+            <div class="card-body">
+                <div class="text-muted small mb-1">Total Paid Out (Outbound)</div>
+                <div class="fw-700 fs-4 text-danger">
+                    ₹@Model.Where(p => p.Direction == 1).Sum(p => p.Amount).ToString("N2")
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2 px-3 d-flex gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="max-width:260px">
+            <span class="input-group-text bg-transparent border-end-0">
+                <i class="bi bi-search text-muted"></i>
+            </span>
+            <input type="text" id="searchInput" class="form-control border-start-0"
+                   placeholder="Search…" value="@activeSearch" oninput="filterTable()">
+        </div>
+        <select id="filterDir" class="form-select form-select-sm" style="max-width:150px" onchange="filterTable()">
+            <option value="">All payments</option>
+            <option value="inbound">Received</option>
+            <option value="outbound">Paid out</option>
+        </select>
+    </div>
+</div>
+
+<div id="paymentsListCard" class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Payment #</th>
+                        <th>Date</th>
+                        <th>Direction</th>
+                        <th>Method</th>
+                        @* <th>Linked To</th>
+                        <th>Party</th> *@
+                        <th class="text-end">Amount</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                    @foreach (var p in Model)
+                    {
+                        <tr data-direction="@p.DirectionName.ToLower()">
+                            <td class="fw-600 text-primary">@p.PaymentNumber</td>
+                            <td class="small text-muted">@p.PaymentDate.ToString("dd MMM yyyy")</td>
+                            <td>
+                                @if (p.Direction == 0)
+                                {
+                                    <span class="badge bg-success-subtle text-success">
+                                        <i class="bi bi-arrow-down-left me-1"></i>Received
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger-subtle text-danger">
+                                        <i class="bi bi-arrow-up-right me-1"></i>Paid
+                                    </span>
+                                }
+                            </td>
+                            <td class="small text-muted">@(p.Method ?? "—")</td>
+                            @* <td class="small">
+                                @if (!string.IsNullOrEmpty(p.ExpenseNumber))
+                                {
+                                    <span class="badge bg-warning-subtle text-warning border">
+                                        <i class="bi bi-wallet2 me-1"></i>@p.ExpenseNumber
+                                    </span>
+                                }
+                                else if (!string.IsNullOrEmpty(p.InvoiceNumber))
+                                {
+                                    <span class="badge bg-info-subtle text-info border">
+                                        <i class="bi bi-file-earmark-text me-1"></i>@p.InvoiceNumber
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td> *@
+                            @* <td class="small">@(p.ClientName ?? p.VendorName ?? "—")</td> *@
+                            <td class="text-end fw-600 @(p.Direction == 0 ? "text-success" : "text-danger")">
+                                @(p.Direction == 0 ? "+" : "-")₹@p.Amount.ToString("N2")
+                            </td>
+                            <td class="text-end">
+                                @if (Can("payments.delete"))
+                                {
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            onclick="deletePayment('@p.Id','@p.PaymentNumber')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center text-muted py-5">
+                                <i class="bi bi-credit-card fs-2 d-block mb-2 opacity-25"></i>
+                                No payments recorded yet.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* Pagination *@
+    @if (totalPages > 0)
+    {
+        <div class="card-footer bg-transparent border-top d-flex align-items-center justify-content-between px-3 py-2">
+            <span class="text-muted small">
+                Showing @((currentPage - 1) * pageSize + 1)–@(Math.Min(currentPage * pageSize, totalCount)) of @totalCount payments
+            </span>
+            <nav>
+                <ul class="pagination pagination-sm mb-0 gap-1">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage - 1, activeSearch, pageSize)">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    @{
+                        int start = Math.Max(1, currentPage - 2);
+                        int end   = Math.Min(totalPages, start + 4);
+                        start     = Math.Max(1, end - 4);
+                    }
+                    @if (start > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(1, activeSearch, pageSize)">1</a>
+                        </li>
+                        @if (start > 2)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                    }
+                    @for (int pg = start; pg <= end; pg++)
+                    {
+                        <li class="page-item @(pg == currentPage ? "active" : "")">
+                            <a class="page-link rounded" href="@BuildUrl(pg, activeSearch, pageSize)">@pg</a>
+                        </li>
+                    }
+                    @if (end < totalPages)
+                    {
+                        @if (end < totalPages - 1)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(totalPages, activeSearch, pageSize)">@totalPages</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage + 1, activeSearch, pageSize)">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Per page:</span>
+                <select class="form-select form-select-sm" style="width:70px" id="pageSizeSelect">
+                    @foreach (var ps in new[] { 10, 20, 50, 100 })
+                    {
+                        if (ps == pageSize)
+                        {
+                            <option value="@ps" selected="selected">@ps</option>
+                        }
+                        else
+                        {
+                            <option value="@ps">@ps</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+    }
+
+@functions {
+    string BuildUrl(int page, string search, int pageSize)
+    {
+        var q = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrEmpty(search)) q.Add($"search={Uri.EscapeDataString(search)}");
+        q.Add($"page={page}");
+        q.Add($"pageSize={pageSize}");
+        return "/Payment?" + string.Join("&", q);
+    }
+}
+
+</div>
+
+<!-- ── Record Payment Modal ─────────────────────────────── -->
+<div class="modal fade" id="payModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Record Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+
+                    <!-- Direction toggle -->
+                    <div class="col-12">
+                        <label class="form-label fw-600 mb-2">Payment Type</label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="pDir"
+                                       id="pDirIn" value="0" checked onchange="onDirectionChange()">
+                                <label class="form-check-label text-success" for="pDirIn">
+                                    <i class="bi bi-arrow-down-left"></i> Received from client
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="pDir"
+                                       id="pDirOut" value="1" onchange="onDirectionChange()">
+                                <label class="form-check-label text-danger" for="pDirOut">
+                                    <i class="bi bi-arrow-up-right"></i> Paid to vendor
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CLIENT section (Inbound) -->
+                    <div class="col-12" id="clientSection">
+                        <label class="form-label">Client</label>
+                        <select class="form-select" id="pClient">
+                            <option value="">— Select client —</option>
+                        </select>
+                    </div>
+
+                    <!-- LINK TO INVOICE section (Inbound only) -->
+                    <div class="col-12" id="invoiceSection" style="display:none">
+                        <label class="form-label d-flex align-items-center gap-2">
+                            <i class="bi bi-file-earmark-text text-info"></i>
+                            Link to Invoice
+                            <span class="badge bg-info-subtle text-info border" style="font-size:.7rem">
+                                Auto-updates invoice balance
+                            </span>
+                        </label>
+                        <select class="form-select" id="pInvoice">
+                            <option value="">— None (standalone payment) —</option>
+                        </select>
+                        <!-- Info box shown when an invoice is selected -->
+                        <div id="invoiceInfo" class="mt-2 p-2 rounded"
+                             style="display:none;background:var(--bs-info-bg-subtle);border:1px solid var(--bs-info-border-subtle)">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-info-circle text-info"></i>
+                                <span class="small" id="invoiceInfoText"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- VENDOR section (Outbound) -->
+                    <div class="col-12" id="vendorSection" style="display:none">
+                        <label class="form-label">Vendor</label>
+                        <select class="form-select" id="pVendor">
+                            <option value="">— Select vendor —</option>
+                        </select>
+                    </div>
+
+                    <!-- LINK TO EXPENSE section (Outbound only) -->
+                    <div class="col-12" id="expenseSection" style="display:none">
+                        <label class="form-label d-flex align-items-center gap-2">
+                            <i class="bi bi-wallet2 text-warning"></i>
+                            Link to Expense
+                            <span class="badge bg-warning-subtle text-warning border" style="font-size:.7rem">
+                                Auto-marks expense as Paid
+                            </span>
+                        </label>
+                        <select class="form-select" id="pExpense">
+                            <option value="">— None (standalone payment) —</option>
+                        </select>
+                        <!-- Info box — shown when an expense is selected -->
+                        <div id="expenseInfo" class="mt-2 p-2 rounded" style="display:none;background:var(--bs-warning-bg-subtle);border:1px solid var(--bs-warning-border-subtle)">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-info-circle text-warning"></i>
+                                <span class="small" id="expenseInfoText"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="col-12">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="pNotes" rows="2"></textarea>
+                    </div>
+
+
+                    <!-- Amount + Date -->
+                    <div class="col-md-6">
+                        <label class="form-label">Amount <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">₹</span>
+                            <input type="number" class="form-control" id="pAmount"
+                                   min="0.01" step="0.01" value="0">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="pDate">
+                    </div>
+
+                    <!-- Method + Reference -->
+                    <div class="col-md-6">
+                        <label class="form-label">Method</label>
+                        <select class="form-select" id="pMethod">
+                            <option value="">— Select —</option>
+                            <option>Cash</option>
+                            <option>Bank Transfer</option>
+                            <option>UPI</option>
+                            <option>Credit Card</option>
+                            <option>Cheque</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Reference</label>
+                        <input type="text" class="form-control" id="pRef"
+                               placeholder="UTR / cheque no.">
+                    </div>
+
+                  
+
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSave" onclick="savePayment()">
+                    <i class="bi bi-check-lg me-1"></i> Record Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var modal = new bootstrap.Modal(document.getElementById('payModal'));
+        var unpaidExpenses = [];  // cache of unpaid expenses
+
+       var clientInvoices  = [];   // cache for current client's unpaid invoices
+
+        // ── Load dropdowns on page ready ─────────────────────────────
+        $(function(){
+            // Clients
+            $.get('/Client/SelectList', function(res){
+                if(!res.success) return;
+                var sel = document.getElementById('pClient');
+                (res.data||[]).forEach(function(c){ sel.add(new Option(c.text, c.value)); });
+            });
+
+            // Vendors
+            $.get('/Vendor/SelectList', function(res){
+                if(!res.success) return;
+                var sel = document.getElementById('pVendor');
+                (res.data||[]).forEach(function(v){ sel.add(new Option(v.text, v.value)); });
+            });
+
+            // Unpaid expenses for the expense dropdown
+            $.get('/Expense/GetUnpaid', function(res){
+                if(!res.success) return;
+                unpaidExpenses = res.data || [];
+                populateExpenseDropdown(null);
+            });
+        });
+
+        // ── Populate expense dropdown filtered by selected vendor ─────
+        function populateExpenseDropdown(vendorId){
+            var sel = document.getElementById('pExpense');
+            var cur = sel.value;
+            // Clear all except first option
+            while(sel.options.length > 1) sel.remove(1);
+
+            // var filtered = vendorId
+            //     ? unpaidExpenses.filter(function(e){ return e.vendorId === vendorId; })
+            //     : unpaidExpenses;
+
+        //         var filtered = vendorId
+        // ? unpaidExpenses.filter(function(e){
+        //     return (e.vendorId || '').toString().toLowerCase() === vendorId.toString().toLowerCase();
+        //   })
+        // : unpaidExpenses;
+
+            var filtered = vendorId
+        ? unpaidExpenses.filter(function(e){
+            return e.vendorId && e.vendorId.toLowerCase() === vendorId.toLowerCase();
+          })
+        : unpaidExpenses;
+
+
+
+            filtered.forEach(function(e){
+                var label = e.expenseNumber + ' — ' + e.category
+                    + (e.vendorName ? ' (' + e.vendorName + ')' : '')
+                    + ' — ₹' + parseFloat(e.total||0).toLocaleString('en-IN',{minimumFractionDigits:2});
+                sel.add(new Option(label, e.id));
+            });
+
+            if(!filtered.length && vendorId){
+                sel.add(new Option('No unpaid expenses for this vendor', ''));
+            }
+
+            sel.value = cur;
+            onExpenseChange();
+        }
+
+        // ── Direction radio change ────────────────────────────────────
+        function onDirectionChange(){
+            var isIn = document.getElementById('pDirIn').checked;
+            document.getElementById('clientSection').style.display  = isIn ? '' : 'none';
+            document.getElementById('vendorSection').style.display  = isIn ? 'none' : '';
+            document.getElementById('expenseSection').style.display = isIn ? 'none' : '';
+
+             // Hide invoice section when switching to outbound
+         if (!isIn) {
+             document.getElementById('invoiceSection').style.display = 'none';
+             clearInvoiceSection();
+         }
+
+        }
+
+        // ── Vendor change → re-filter expense dropdown ────────────────
+        document.getElementById('pVendor').addEventListener('change', function(){
+            var vendorId = this.value || null;
+            populateExpenseDropdown(vendorId);
+        });
+
+        // ── Expense selection → show info + auto-fill amount ─────────
+        function onExpenseChange(){
+            var expId = document.getElementById('pExpense').value;
+            var infoBox  = document.getElementById('expenseInfo');
+            var infoText = document.getElementById('expenseInfoText');
+
+            if(!expId){
+                infoBox.style.display = 'none';
+                return;
+            }
+
+            var exp = unpaidExpenses.find(function(e){ return e.id === expId; });
+            if(!exp){ infoBox.style.display = 'none'; return; }
+
+            // Auto-fill amount from expense total
+            var currentAmt = parseFloat(document.getElementById('pAmount').value)||0;
+            if(currentAmt === 0 || currentAmt === parseFloat(document.getElementById('pAmount').defaultValue)){
+                document.getElementById('pAmount').value = parseFloat(exp.total||0).toFixed(2);
+            }
+
+            infoText.textContent = 'Saving this payment will automatically mark '
+                + exp.expenseNumber + ' (' + exp.category + ', ₹'
+                + parseFloat(exp.total).toLocaleString('en-IN',{minimumFractionDigits:2})
+                + ') as Paid.';
+            infoBox.style.display = '';
+        }
+        document.getElementById('pExpense').addEventListener('change', onExpenseChange);
+
+
+             // ── Client change → load unpaid invoices ─────────────────────
+        document.getElementById('pClient').addEventListener('change', function () {
+            var clientId = this.value;
+            clearInvoiceSection();
+
+            if (!clientId) {
+                document.getElementById('invoiceSection').style.display = 'none';
+                return;
+            }
+
+            // Show section immediately with loading state
+            document.getElementById('invoiceSection').style.display = '';
+            var sel = document.getElementById('pInvoice');
+            sel.innerHTML = '<option value="">Loading invoices…</option>';
+            sel.disabled  = true;
+
+            $.get('/Payment/GetUnpaidInvoicesByClient?clientId=' + clientId, function (res) {
+                sel.disabled = false;
+                sel.innerHTML = '<option value="">— None (standalone payment) —</option>';
+
+                if (!res.success || !res.data || !res.data.length) {
+                    sel.add(new Option('No outstanding invoices for this client', ''));
+                    clientInvoices = [];
+                    return;
+                }
+
+                clientInvoices = res.data;
+                res.data.forEach(function (inv) {
+                    var label = inv.invoiceNumber
+                        + ' — Balance ₹' + parseFloat(inv.balanceDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                        + ' (Due ' + inv.dueDate + ')';
+                    sel.add(new Option(label, inv.id));
+                });
+            }).fail(function () {
+                sel.disabled = false;
+                sel.innerHTML = '<option value="">— None (standalone payment) —</option>';
+            });
+        });
+
+
+               // ── Invoice selection → show info + auto-fill amount ─────────
+        function onInvoiceChange() {
+            var invId    = document.getElementById('pInvoice').value;
+            var infoBox  = document.getElementById('invoiceInfo');
+            var infoText = document.getElementById('invoiceInfoText');
+
+            if (!invId) { infoBox.style.display = 'none'; return; }
+
+            var inv = clientInvoices.find(function (i) { return i.id === invId; });
+            if (!inv) { infoBox.style.display = 'none'; return; }
+
+            // Auto-fill balance due amount
+            document.getElementById('pAmount').value = parseFloat(inv.balanceDue).toFixed(2);
+
+            var paidLabel = parseFloat(inv.paidAmount) > 0
+                ? ' (₹' + parseFloat(inv.paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 }) + ' already paid)'
+                : '';
+
+            infoText.textContent = 'Saving will apply ₹'
+                + parseFloat(inv.balanceDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                + ' to ' + inv.invoiceNumber + paidLabel
+                + '. Invoice will be marked Paid or Partially Paid automatically.';
+            infoBox.style.display = '';
+        }
+        document.getElementById('pInvoice').addEventListener('change', onInvoiceChange);
+
+        function clearInvoiceSection() {
+            clientInvoices = [];
+            var sel = document.getElementById('pInvoice');
+            sel.innerHTML = '<option value="">— None (standalone payment) —</option>';
+            sel.disabled  = false;
+            document.getElementById('invoiceInfo').style.display = 'none';
+        }
+
+
+
+
+        // ── Open modal ────────────────────────────────────────────────
+        function openModal(){
+            document.getElementById('pAmount').value = '0';
+            document.getElementById('pDate').value   = new Date().toISOString().slice(0,10);
+            document.getElementById('pMethod').value = '';
+            document.getElementById('pRef').value    = '';
+            document.getElementById('pNotes').value  = '';
+            document.getElementById('pClient').value = '';
+            document.getElementById('pVendor').value = '';
+            document.getElementById('pExpense').value = '';
+            document.getElementById('expenseInfo').style.display = 'none';
+            document.getElementById('pDirIn').checked = true;
+            onDirectionChange();
+            modal.show();
+        }
+
+        // ── Save payment ──────────────────────────────────────────────
+        function savePayment(){
+            var amount = parseFloat(document.getElementById('pAmount').value)||0;
+            if(amount <= 0){ toastError('Amount must be greater than 0.'); return; }
+
+            var isIn   = document.getElementById('pDirIn').checked;
+            var expId  = document.getElementById('pExpense').value || null;
+            var vendorId = document.getElementById('pVendor').value || null;
+            var invoiceId = document.getElementById('pInvoice').value || null;
+
+            // Validate: outbound with expense should have a vendor
+            // if(!isIn && !vendorId && !expId){
+            //     allow — standalone outbound payment is fine
+            // }
+
+                 // Client-side balance validation
+        if (isIn && invoiceId) {
+            var inv = clientInvoices.find(function (i) { return i.id === invoiceId; });
+            if (inv && amount > parseFloat(inv.balanceDue)) {
+                toastError('Amount cannot exceed balance due (₹'
+                    + parseFloat(inv.balanceDue).toLocaleString('en-IN', { minimumFractionDigits: 2 }) + ').');
+                return;
+            }
+        }
+
+            var $btn = $('#btnSave').prop('disabled', true)
+                .html('<span class="spinner-border spinner-border-sm me-1"></span>Recording…');
+
+            var dto = {
+                direction:   isIn ? 0 : 1,
+                amount:      amount,
+                paymentDate: document.getElementById('pDate').value,
+                method:      document.getElementById('pMethod').value || null,
+                reference:   document.getElementById('pRef').value.trim() || null,
+                clientId:    isIn ? (document.getElementById('pClient').value || null) : null,
+                vendorId:    !isIn ? (vendorId || null) : null,
+                invoiceId:   isIn  ? (invoiceId || null) : null,
+                expenseId:   !isIn ? expId : null,
+                notes:       document.getElementById('pNotes').value.trim() || null
+            };
+
+            ajaxPost('/Payment/Create', dto, $btn).done(function(res){
+                $btn.prop('disabled', false)
+                    .html('<i class="bi bi-check-lg me-1"></i> Record Payment');
+
+                if(res.success){
+                    var msg = res.message || 'Payment recorded.';
+                    if(dto.expenseId){
+                        msg += ' Expense marked as Paid.';
+                    }
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Payment recorded!',
+                        text: msg,
+                        timer: 2200,
+                        showConfirmButton: false
+                    });
+                    modal.hide();
+                    setTimeout(function(){ location.reload(); }, 2300);
+                } else {
+                    toastError(res.message || 'Failed to record payment.');
+                }
+            });
+        }
+
+        // ── Delete payment ────────────────────────────────────────────
+        function deletePayment(id, num){
+            confirmDelete({ title:'Delete payment?', text: num }).then(function(r){
+                if(!r.isConfirmed) return;
+                ajaxPost('/Payment/Delete?id=' + id, {}).done(function(res){
+                    if(res.success){
+                        toastSuccess(res.message);
+                        setTimeout(function(){ location.reload(); }, 700);
+                    } else {
+                        toastError(res.message);
+                    }
+                });
+            });
+        }
+
+        // ── Filter table ──────────────────────────────────────────────
+        function filterTable(){
+            var q   = document.getElementById('searchInput').value.toLowerCase();
+            var dir = document.getElementById('filterDir').value.toLowerCase();
+            document.querySelectorAll('#tbody tr[data-direction]').forEach(function(tr){
+                var match = tr.textContent.toLowerCase().includes(q)
+                         && (!dir || tr.dataset.direction === dir);
+                tr.style.display = match ? '' : 'none';
+            });
+        }
+        // AJAX pagination (no full reload)
+        function loadPaymentsFromUrl(url) {
+            $.get(url).done(function (html) {
+                var tmp = $('<div>').append($.parseHTML(html));
+                var newCard = tmp.find('#paymentsListCard');
+                if (newCard.length) {
+                    $('#paymentsListCard').replaceWith(newCard);
+                    setupPaymentPaginationHandlers();
+                    initPaymentHandlers();
+                } else {
+                    window.location.href = url; // fallback
+                }
+            }).fail(function () { toastError('Failed to load payments.'); });
+        }
+
+        function setupPaymentPaginationHandlers() {
+            $('#pageSizeSelect').off('change').on('change', function () {
+                var ps = $(this).val();
+                var s = encodeURIComponent($('#searchInput').val() || '');
+                var url = '/Payment?page=1&pageSize=' + ps + (s ? '&search=' + s : '');
+                loadPaymentsFromUrl(url);
+            });
+
+            $(document).off('click', '#paymentsListCard .pagination a').on('click', '#paymentsListCard .pagination a', function (e) {
+                e.preventDefault();
+                var href = $(this).attr('href');
+                if (href) loadPaymentsFromUrl(href);
+            });
+        }
+
+        function initPaymentHandlers() {
+            $('#searchInput').off('input').on('input', filterTable);
+            $('#filterDir').off('change').on('change', filterTable);
+        }
+
+        // initialize handlers on load
+        setupPaymentPaginationHandlers(); initPaymentHandlers();
+    </script>
+}

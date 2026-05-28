@@ -1,0 +1,387 @@
+﻿@* @{
+    ViewData["Title"] = "Accounts Payable";
+    ViewBag.ActiveMenu = "accounting";
+}
+
+@section Styles {
+<style>
+#spinner { display:none; }
+.aging-current { color:#16A34A; }
+.aging-30 { color:#D97706; }
+.aging-60 { color:#2563EB; }
+.aging-over { color:#DC2626; font-weight:600; }
+</style>
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Accounts Payable</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/Accounting">Accounting</a></li>
+            <li class="breadcrumb-item active">Payables</li>
+        </ol></nav>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadReport()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="exportCsv()">
+            <i class="bi bi-download me-1"></i>Export
+        </button>
+    </div>
+</div>
+
+<!-- Aging summary -->
+<div class="row g-3 mb-4" id="agingCards" style="display:none">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small mb-1">Within 30 days</div>
+                <div class="fw-700 fs-5 aging-current" id="cTotal">₹0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small mb-1">31–60 days</div>
+                <div class="fw-700 fs-5 aging-30" id="c30">₹0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small mb-1">61–90 days</div>
+                <div class="fw-700 fs-5 aging-60" id="c60">₹0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <div class="text-muted small mb-1">90+ days overdue</div>
+                <div class="fw-700 fs-5 aging-over" id="cOver">₹0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="spinner" class="text-center py-5">
+    <div class="spinner-border text-primary" style="width:2rem;height:2rem;"></div>
+    <div class="text-muted small mt-2">Loading…</div>
+</div>
+
+<div id="reportContent" style="display:none">
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent">
+            <h6 class="fw-600 mb-0">Outstanding by Vendor</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Vendor</th>
+                            <th class="text-end aging-current">Within 30d</th>
+                            <th class="text-end aging-30">31–60 days</th>
+                            <th class="text-end aging-60">61–90 days</th>
+                            <th class="text-end aging-over">90+ days</th>
+                            <th class="text-end fw-600">Total Owed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                    <tfoot id="tfoot" class="table-light fw-600"></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+var reportData = [];
+function fmt(n){ return '₹' + parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+// function loadReport(){
+//     document.getElementById('spinner').style.display = 'block';
+//     document.getElementById('reportContent').style.display = 'none';
+
+//     $.get('/Accounting/Payables', function(res){
+//         document.getElementById('spinner').style.display = 'none';
+//         if(!res.success){ toastError(res.message||'Failed to load.'); return; }
+//         reportData = res.data || [];
+//         renderReport(reportData);
+//         document.getElementById('reportContent').style.display = 'block';
+//     }).fail(function(){
+//         document.getElementById('spinner').style.display = 'none';
+//         toastError('Failed to load payables.');
+//     });
+// }
+
+function loadReport(){
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('reportContent').style.display = 'none';
+
+    $.ajax({
+        // url: '/Accounting/Payables',
+         url: '/Accounting/PayablesData',
+        type: 'GET',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        success: function(res){
+            document.getElementById('spinner').style.display = 'none';
+            if(!res.success){ toastError(res.message||'Failed to load.'); return; }
+            reportData = res.data || [];
+            renderReport(reportData);
+            document.getElementById('reportContent').style.display = 'block';
+        },
+        error: function(){
+            document.getElementById('spinner').style.display = 'none';
+            toastError('Failed to load payables.');
+        }
+    });
+}
+
+function renderReport(rows){
+    var tbody = '', tfoot = '';
+    var totals = {current:0, d30:0, d60:0, over:0, total:0};
+
+    if(!rows.length){
+        tbody = '<tr><td colspan="6" class="text-center text-muted py-5">'
+              + '<i class="bi bi-check-circle text-success fs-2 d-block mb-2"></i>'
+              + 'No outstanding payables. All expenses are paid.</td></tr>';
+    } else {
+        rows.forEach(function(r){
+            totals.current += parseFloat(r.current||0);
+            totals.d30     += parseFloat(r.days1_30||0);
+            totals.d60     += parseFloat(r.days31_60||0);
+            totals.over    += parseFloat(r.over60||0);
+            totals.total   += parseFloat(r.total||0);
+
+            tbody += '<tr>'
+                + '<td class="fw-600">' + (r.name||'—') + '</td>'
+                + '<td class="text-end aging-current">' + (parseFloat(r.current||0)>0?fmt(r.current):'—') + '</td>'
+                + '<td class="text-end aging-30">'      + (parseFloat(r.days1_30||0)>0?fmt(r.days1_30):'—') + '</td>'
+                + '<td class="text-end aging-60">'      + (parseFloat(r.days31_60||0)>0?fmt(r.days31_60):'—') + '</td>'
+                + '<td class="text-end aging-over">'    + (parseFloat(r.over60||0)>0?fmt(r.over60):'—') + '</td>'
+                + '<td class="text-end fw-600 text-danger">' + fmt(r.total) + '</td>'
+                + '</tr>';
+        });
+
+        tfoot = '<tr>'
+            + '<td>Total</td>'
+            + '<td class="text-end aging-current">' + fmt(totals.current) + '</td>'
+            + '<td class="text-end aging-30">'  + fmt(totals.d30) + '</td>'
+            + '<td class="text-end aging-60">'  + fmt(totals.d60) + '</td>'
+            + '<td class="text-end aging-over">' + fmt(totals.over) + '</td>'
+            + '<td class="text-end text-danger">' + fmt(totals.total) + '</td>'
+            + '</tr>';
+
+        document.getElementById('cTotal').textContent = fmt(totals.current);
+        document.getElementById('c30').textContent    = fmt(totals.d30);
+        document.getElementById('c60').textContent    = fmt(totals.d60);
+        document.getElementById('cOver').textContent  = fmt(totals.over);
+        document.getElementById('agingCards').style.display = '';
+    }
+
+    document.getElementById('tbody').innerHTML = tbody;
+    document.getElementById('tfoot').innerHTML = tfoot;
+}
+
+function exportCsv(){
+    if(!reportData.length){ toastError('No data to export.'); return; }
+    var rows = [['Vendor','Within 30d','31-60 days','61-90 days','90+ days','Total']];
+    reportData.forEach(function(r){
+        rows.push([r.name,r.current,r.days1_30,r.days31_60,r.over60,r.total]);
+    });
+    var csv = rows.map(function(r){ return r.map(function(c){ return '"'+(c||0)+'"'; }).join(','); }).join('\n');
+    var blob = new Blob([csv],{type:'text/csv'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Payables_Aging.csv';
+    a.click();
+}
+
+$(function(){ loadReport(); });
+</script>
+} *@
+
+
+@{
+    ViewData["Title"] = "Accounts Payable";
+    ViewBag.ActiveMenu = "accounting";
+}
+
+@section Styles {
+<style>
+#spinner { display:none; }
+.aging-current { color:#16A34A; }
+.aging-30      { color:#D97706; }
+.aging-60      { color:#2563EB; }
+.aging-over    { color:#DC2626;font-weight:600; }
+.locked-banner { background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;
+                 padding:8px 14px;font-size:.82rem;color:#92400E;display:none; }
+</style>
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Accounts Payable</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/Accounting">Accounting</a></li>
+            <li class="breadcrumb-item active">Payables</li>
+        </ol></nav>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        @await Html.PartialAsync("_FYPicker")
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadReport()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="exportCsv()">
+            <i class="bi bi-download me-1"></i>Export
+        </button>
+    </div>
+</div>
+
+<div class="locked-banner mb-3" id="lockedBanner">
+    <i class="bi bi-lock-fill me-2"></i>
+    <strong>This fiscal year is locked.</strong> All data is read-only.
+</div>
+
+<div class="row g-3 mb-4" id="agingCards" style="display:none">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm"><div class="card-body text-center">
+            <div class="text-muted small mb-1">Within 30 days</div>
+            <div class="fw-700 fs-5 aging-current" id="cCurrent">₹0</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm"><div class="card-body text-center">
+            <div class="text-muted small mb-1">31–60 days</div>
+            <div class="fw-700 fs-5 aging-30" id="c30">₹0</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm"><div class="card-body text-center">
+            <div class="text-muted small mb-1">61–90 days</div>
+            <div class="fw-700 fs-5 aging-60" id="c60">₹0</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm"><div class="card-body text-center">
+            <div class="text-muted small mb-1">90+ days overdue</div>
+            <div class="fw-700 fs-5 aging-over" id="cOver">₹0</div>
+        </div></div>
+    </div>
+</div>
+
+<div id="spinner" class="text-center py-5">
+    <div class="spinner-border text-primary" style="width:2rem;height:2rem;"></div>
+    <div class="text-muted small mt-2">Loading…</div>
+</div>
+
+<div id="reportContent" style="display:none">
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent">
+            <h6 class="fw-600 mb-0">Outstanding by Vendor</h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Vendor</th>
+                            <th class="text-end aging-current">Within 30d</th>
+                            <th class="text-end aging-30">31–60 days</th>
+                            <th class="text-end aging-60">61–90 days</th>
+                            <th class="text-end aging-over">90+ days</th>
+                            <th class="text-end fw-600">Total Owed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                    <tfoot id="tfoot" class="table-light fw-600"></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+var reportData = [];
+function fmt(n){ return '₹'+parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function loadReport(){
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('reportContent').style.display = 'none';
+
+    $.get('/Accounting/Payables', function(res){
+        document.getElementById('spinner').style.display = 'none';
+        if(!res.success){ toastError(res.message||'Failed to load.'); return; }
+        reportData = res.data || [];
+        renderReport(reportData);
+        document.getElementById('reportContent').style.display = 'block';
+        document.getElementById('lockedBanner').style.display =
+            (window.activeFY && window.activeFY.status===1) ? 'block' : 'none';
+    }).fail(function(){
+        document.getElementById('spinner').style.display = 'none';
+        toastError('Failed to load payables.');
+    });
+}
+
+function renderReport(rows){
+    var totals = {current:0, d30:0, d60:0, over:0, total:0};
+    var tbody = '', tfoot = '';
+    if(!rows.length){
+        tbody = '<tr><td colspan="6" class="text-center text-muted py-5">'
+              + '<i class="bi bi-check-circle text-success fs-2 d-block mb-2"></i>'
+              + 'No outstanding payables. All expenses are paid.</td></tr>';
+    } else {
+        rows.forEach(function(r){
+            totals.current += parseFloat(r.current||0);
+            totals.d30     += parseFloat(r.days1_30||0);
+            totals.d60     += parseFloat(r.days31_60||0);
+            totals.over    += parseFloat(r.over60||0);
+            totals.total   += parseFloat(r.total||0);
+            tbody += '<tr>'
+                + '<td class="fw-600">'+(r.name||'—')+'</td>'
+                + '<td class="text-end aging-current">'+(parseFloat(r.current||0)>0?fmt(r.current):'—')+'</td>'
+                + '<td class="text-end aging-30">'+(parseFloat(r.days1_30||0)>0?fmt(r.days1_30):'—')+'</td>'
+                + '<td class="text-end aging-60">'+(parseFloat(r.days31_60||0)>0?fmt(r.days31_60):'—')+'</td>'
+                + '<td class="text-end aging-over">'+(parseFloat(r.over60||0)>0?fmt(r.over60):'—')+'</td>'
+                + '<td class="text-end fw-600 text-danger">'+fmt(r.total)+'</td></tr>';
+        });
+        tfoot = '<tr><td>Total</td>'
+            + '<td class="text-end aging-current">'+fmt(totals.current)+'</td>'
+            + '<td class="text-end aging-30">'+fmt(totals.d30)+'</td>'
+            + '<td class="text-end aging-60">'+fmt(totals.d60)+'</td>'
+            + '<td class="text-end aging-over">'+fmt(totals.over)+'</td>'
+            + '<td class="text-end text-danger">'+fmt(totals.total)+'</td></tr>';
+        document.getElementById('cCurrent').textContent = fmt(totals.current);
+        document.getElementById('c30').textContent      = fmt(totals.d30);
+        document.getElementById('c60').textContent      = fmt(totals.d60);
+        document.getElementById('cOver').textContent    = fmt(totals.over);
+        document.getElementById('agingCards').style.display = '';
+    }
+    document.getElementById('tbody').innerHTML = tbody;
+    document.getElementById('tfoot').innerHTML = tfoot;
+}
+
+function exportCsv(){
+    if(!reportData.length){ toastError('No data to export.'); return; }
+    var rows=[['Vendor','Within 30d','31-60 days','61-90 days','90+ days','Total']];
+    reportData.forEach(function(r){ rows.push([r.name,r.current,r.days1_30,r.days31_60,r.over60,r.total]); });
+    var csv=rows.map(function(r){ return r.map(function(c){ return '"'+(c||0)+'"'; }).join(','); }).join('\n');
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download='Payables_'+(window.activeFY?window.activeFY.label:'Report')+'.csv';
+    a.click();
+}
+
+document.addEventListener('fy:changed', function(){ loadReport(); });
+$(function(){ loadReport(); });
+</script>
+}
+

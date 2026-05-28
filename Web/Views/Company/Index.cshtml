@@ -1,0 +1,326 @@
+﻿@model InvoiceSaaS.Application.DTOs.Companies.CompanyDto
+@{
+    ViewData["Title"]  = "Company Settings";
+    ViewBag.ActiveMenu = "companies";
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    var perms = (ViewBag.Permissions as HashSet<string>) ?? new HashSet<string>();
+    bool can(string c) => isSA || perms.Contains(c);
+    bool canEdit = can("company.edit");
+    // Fix logo path: CompanyService stores only the file name in Logo.
+    // Ensure we render the correct URL (/uploads/logos/{filename}) when needed.
+    string? logoUrl = null;
+    if (!string.IsNullOrEmpty(Model?.Logo))
+    {
+        logoUrl = Model.Logo!.StartsWith("/") ? Model.Logo : $"/uploads/logos/{Model.Logo}";
+    }
+}
+
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <h4 class="mb-1">Company Settings</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item active">Company Settings</li>
+            </ol>
+        </nav>
+    </div>
+    @if (canEdit)
+    {
+        <button class="btn btn-primary" id="btnSaveCompany">
+            <i class="bi bi-check-lg me-1"></i>Save Changes
+        </button>
+    }
+</div>
+
+<div class="row g-4">
+
+    <!-- ── Left: Logo + Branding ─────────────────────────────── -->
+    <div class="col-xl-3 col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header"><span class="card-title">Company Logo</span></div>
+            <div class="card-body text-center">
+                <!-- Logo preview -->
+                <div id="logoWrap" class="mb-3">
+                @if (!string.IsNullOrEmpty(logoUrl))
+                {
+                    <img src="@logoUrl" id="logoPreview" alt="Company Logo"
+                         class="img-fluid rounded-3 shadow-sm"
+                         style="max-height:120px;max-width:100%;object-fit:contain;"/>
+                }
+                    else
+                    {
+                        <div id="logoPlaceholder"
+                             style="width:120px;height:120px;border-radius:16px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));
+                                    display:inline-flex;align-items:center;justify-content:center;
+                                    font-size:48px;color:#fff;font-weight:700;">
+                            @(Model?.Name?.Length > 0 ? Model.Name[0].ToString().ToUpper() : "C")
+                        </div>
+                        <img src="" id="logoPreview" alt="Logo Preview"
+                             class="img-fluid rounded-3 shadow-sm d-none"
+                             style="max-height:120px;max-width:100%;object-fit:contain;"/>
+                    }
+                </div>
+
+                @if (canEdit)
+                {
+                    <label class="btn btn-outline-primary btn-sm w-100 cursor-pointer" for="logoFile">
+                        <i class="bi bi-cloud-upload me-1"></i>
+                        Upload Logo
+                    </label>
+                    <input type="file" id="logoFile" accept=".jpg,.jpeg,.png,.webp,.svg"
+                           class="d-none"/>
+                    <p class="text-muted fs-12 mt-2 mb-0">JPG, PNG, WebP or SVG. Max 5 MB.</p>
+                }
+
+                <hr class="my-3"/>
+                <div class="text-start">
+                    <div class="text-muted fs-12 mb-1">Currency</div>
+                    @if (canEdit)
+                    {
+                        @* <select class="form-select form-select-sm" id="currencyCode">
+                            @foreach (var cur in new[] { "USD","EUR","GBP","INR","AUD","CAD","SGD","AED","JPY","CNY" })
+                            {
+                                <option value="@cur" @(Model?.CurrencyCode == cur ? "selected" : "")>@cur</option>
+                            }
+                        </select> *@
+                        <select class="form-select form-select-sm" id="currencyCode">
+                            @foreach (var cur in new[] { "USD", "EUR", "GBP", "INR", "AUD", "CAD", "SGD", "AED", "JPY", "CNY" })
+                            {
+                                <option value="@cur"
+                                        selected="@(Model?.CurrencyCode == cur ? "selected" : null)">
+                                    @cur
+                                </option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="fw-600 fs-13">@(Model?.CurrencyCode ?? "USD")</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Right: Company Details ─────────────────────────────── -->
+    <div class="col-xl-9 col-md-8">
+        <form id="companyForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" id="companyId" value="@Model?.Id"/>
+            <input type="hidden" id="invoiceTemplate" value="@(Model?.InvoiceTemplate ?? "classic")" />
+            <!-- Basic Info -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header"><span class="card-title">Basic Information</span></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Company Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="companyName"
+                                   value="@Model?.Name" maxlength="200"
+                                   placeholder="Your Company Ltd." @(!canEdit ? "readonly" : "")/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tax Number / VAT</label>
+                            <input type="text" class="form-control" id="taxNumber"
+                                   value="@Model?.TaxNumber" maxlength="100"
+                                   placeholder="Optional" @(!canEdit ? "readonly" : "")/>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email Address</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0">
+                                    <i class="bi bi-envelope text-muted"></i>
+                                </span>
+                                <input type="email" class="form-control border-start-0" id="companyEmail"
+                                       value="@Model?.Email" maxlength="200"
+                                       placeholder="info@company.com" @(!canEdit ? "readonly" : "")/>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Phone</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0">
+                                    <i class="bi bi-telephone text-muted"></i>
+                                </span>
+                                <input type="tel" class="form-control border-start-0" id="companyPhone"
+                                       value="@Model?.Phone" maxlength="20"
+                                       placeholder="+1 555 0100" @(!canEdit ? "readonly" : "")/>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Website</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0">
+                                    <i class="bi bi-globe text-muted"></i>
+                                </span>
+                                <input type="url" class="form-control border-start-0" id="website"
+                                       value="@Model?.Website" maxlength="200"
+                                       placeholder="https://yourcompany.com" @(!canEdit ? "readonly" : "")/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Address -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header"><span class="card-title">Address</span></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Street Address</label>
+                            <input type="text" class="form-control" id="address"
+                                   value="@Model?.Address" maxlength="500"
+                                   placeholder="123 Business Avenue" @(!canEdit ? "readonly" : "")/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">City</label>
+                            <input type="text" class="form-control" id="city"
+                                   value="@Model?.City" maxlength="100" @(!canEdit ? "readonly" : "")/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">State / Province</label>
+                            <input type="text" class="form-control" id="state"
+                                   value="@Model?.State" maxlength="100" @(!canEdit ? "readonly" : "")/>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Postal Code</label>
+                            <input type="text" class="form-control" id="postalCode"
+                                   value="@Model?.PostalCode" maxlength="20" @(!canEdit ? "readonly" : "")/>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Country</label>
+                            <input type="text" class="form-control" id="country"
+                                   value="@Model?.Country" maxlength="100"
+                                   placeholder="United States" @(!canEdit ? "readonly" : "")/>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (canEdit)
+            {
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="/Dashboard" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="button" class="btn btn-primary px-4" id="btnSaveBottom">
+                        <i class="bi bi-check-lg me-2"></i>Save Changes
+                    </button>
+                </div>
+            }
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+// ── Logo upload ───────────────────────────────────────────────
+$('#logoFile').on('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toastError('File too large. Max 5 MB.'); return; }
+
+    // Preview instantly
+    const reader = new FileReader();
+    reader.onload = e => {
+        $('#logoPlaceholder').addClass('d-none');
+        $('#logoPreview').attr('src', e.target.result).removeClass('d-none');
+    };
+    reader.readAsDataURL(file);
+
+    // Upload
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('__RequestVerificationToken', getCsrfToken());
+
+    Swal.fire({ title: 'Uploading…', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    $.ajax({
+        url:         '/Company/UploadLogo',
+        type:        'POST',
+        data:        fd,
+        processData: false,
+        contentType: false
+    })
+    .done(res => {
+        Swal.close();
+        if (res.success) toastSuccess('Logo uploaded successfully!');
+        else { toastError(res.message); $('#logoPreview').addClass('d-none'); $('#logoPlaceholder').removeClass('d-none'); }
+    })
+    .fail(() => { Swal.close(); toastError('Upload failed. Please try again.'); });
+});
+
+// ── Save company ──────────────────────────────────────────────
+function saveCompany() {
+    const name = $('#companyName').val().trim();
+    if (!name) { toastError('Company name is required.'); $('#companyName').focus(); return; }
+
+    const data = {
+        id:           $('#companyId').val(),
+        name,
+        email:        $('#companyEmail').val().trim(),
+        phone:        $('#companyPhone').val().trim(),
+        website:      $('#website').val().trim(),
+        address:      $('#address').val().trim(),
+        city:         $('#city').val().trim(),
+        state:        $('#state').val().trim(),
+        country:      $('#country').val().trim(),
+        postalCode:   $('#postalCode').val().trim(),
+        taxNumber:    $('#taxNumber').val().trim(),
+        currencyCode: $('#currencyCode').val() || 'USD'
+      //  invoiceTemplate: $('#invoiceTemplate').val() || 'classic'
+    };
+
+    // const $btn = $('#btnSaveCompany');
+    // setLoading($btn, true);
+
+             const $btns = $('#btnSaveCompany, #btnSaveBottom');
+            $btns.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Saving…');
+
+//     ajaxPost('/Company/Save', data)
+//         .done(res => {
+//             if (res.success) {
+//                 toastSuccess(res.message || 'Company settings saved.');
+//             } else {
+//                 showFormErrors(res.errors?.length ? res.errors : [res.message]);
+//             }
+//         })
+//         .fail(() => toastError('Server error. Please try again.'))
+//         .always(() => setLoading($btn, false));
+// }
+
+         // ✅ Send CSRF token in header (works with [FromBody])
+            $.ajax({
+                url:         '/Company/Save',
+                type:        'POST',
+                contentType: 'application/json',
+                headers:     { 'RequestVerificationToken': getCsrfToken() },  // ✅ KEY FIX
+                data:        JSON.stringify(data)
+            })
+            .done(res => {
+                if (res.success) {
+                    toastSuccess(res.message || 'Company settings saved.');
+                } else {
+                    showFormErrors(res.errors?.length ? res.errors : [res.message]);
+                }
+            })
+            .fail(xhr => {
+                // ✅ Add this to see the actual error
+                console.error('Save failed:', xhr.status, xhr.responseText);
+                toastError('Server error. Please try again.');
+            })
+                     .always(() => {
+                // ✅ Restore buttons
+                $btns.prop('disabled', false).html('<i class="bi bi-check-lg me-1"></i>Save Changes');
+            });
+
+  }
+
+$('#btnSaveCompany, #btnSaveBottom').on('click', saveCompany);
+
+// ── Enter key submits ─────────────────────────────────────────
+$('#companyForm input, #companyForm select').on('keydown', function (e) {
+    if (e.key === 'Enter') saveCompany();
+});
+</script>
+}

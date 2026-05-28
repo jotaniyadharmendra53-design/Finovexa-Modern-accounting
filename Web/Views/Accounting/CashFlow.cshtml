@@ -1,0 +1,165 @@
+﻿@{
+    ViewData["Title"] = "Cash Flow";
+    ViewBag.ActiveMenu = "accounting";
+}
+
+@section Styles {
+<style>
+.stat-card { border-radius:12px;padding:20px 24px; }
+.stat-label { font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;opacity:.7; }
+.stat-value { font-size:1.75rem;font-weight:700;line-height:1.2;margin-top:4px; }
+#spinner { display:none; }
+.locked-banner { background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;
+                 padding:8px 14px;font-size:.82rem;color:#92400E;display:none; }
+</style>
+}
+
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="mb-1">Cash Flow</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/Accounting">Accounting</a></li>
+            <li class="breadcrumb-item active">Cash Flow</li>
+        </ol></nav>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        @await Html.PartialAsync("_FYPicker")
+        <button class="btn btn-sm btn-outline-secondary" onclick="exportCsv()">
+            <i class="bi bi-download me-1"></i>Export
+        </button>
+    </div>
+</div>
+
+<div class="locked-banner mb-3" id="lockedBanner">
+    <i class="bi bi-lock-fill me-2"></i>
+    <strong>This fiscal year is locked.</strong> All data is read-only.
+</div>
+
+<div id="spinner" class="text-center py-5">
+    <div class="spinner-border text-primary" style="width:2rem;height:2rem;"></div>
+    <div class="text-muted small mt-2">Loading…</div>
+</div>
+
+<div id="reportContent" style="display:none">
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="stat-card border-0 shadow-sm" style="background:#F8FAFC">
+                <div class="stat-label text-muted">Opening Balance</div>
+                <div class="stat-value" id="sOpen">₹0</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card border-0 shadow-sm" style="background:#F0FDF4">
+                <div class="stat-label text-success">Total Inbound</div>
+                <div class="stat-value text-success" id="sIn">₹0</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card border-0 shadow-sm" style="background:#FFF1F2">
+                <div class="stat-label text-danger">Total Outbound</div>
+                <div class="stat-value text-danger" id="sOut">₹0</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card border-0 shadow-sm" id="closeCard" style="background:#EFF6FF">
+                <div class="stat-label">Closing Balance</div>
+                <div class="stat-value" id="sClose">₹0</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent d-flex align-items-center justify-content-between">
+            <h6 class="fw-600 mb-0">Transactions</h6>
+            <span class="text-muted small" id="rowCount"></span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th><th>Reference</th><th>Type</th>
+                            <th class="text-end text-success">Inbound</th>
+                            <th class="text-end text-danger">Outbound</th>
+                            <th class="text-end">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+var reportData = null;
+function fmt(n){ return '₹'+parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function loadReport(){
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('reportContent').style.display = 'none';
+    var url = '/Accounting/CashFlow' + (window.getFYFilter ? window.getFYFilter() : '?year=' + new Date().getFullYear());
+
+    $.get(url, function(res){
+        document.getElementById('spinner').style.display = 'none';
+        if(!res.success){ toastError(res.message||'Failed to load.'); return; }
+        reportData = res.data;
+        renderReport(reportData);
+        document.getElementById('reportContent').style.display = 'block';
+        document.getElementById('lockedBanner').style.display =
+            (window.activeFY && window.activeFY.status===1) ? 'block' : 'none';
+    }).fail(function(){
+        document.getElementById('spinner').style.display = 'none';
+        toastError('Failed to load report.');
+    });
+}
+
+function renderReport(d){
+    document.getElementById('sOpen').textContent  = fmt(d.openingBalance);
+    document.getElementById('sIn').textContent    = fmt(d.totalInbound);
+    document.getElementById('sOut').textContent   = fmt(d.totalOutbound);
+    document.getElementById('sClose').textContent = fmt(d.closingBalance);
+    var isNeg = (d.closingBalance||0) < 0;
+    document.getElementById('closeCard').style.background = isNeg ? '#FFF1F2' : '#EFF6FF';
+    document.getElementById('sClose').style.color = isNeg ? '#DC2626' : '#3B82F6';
+    var rows = d.rows || [];
+    document.getElementById('rowCount').textContent = rows.length + ' transactions';
+    var html = '';
+    if(!rows.length){
+        html = '<tr><td colspan="6" class="text-center text-muted py-4">No transactions for this period.</td></tr>';
+    } else {
+        rows.forEach(function(r){
+            var bal = parseFloat(r.balance||0);
+            html += '<tr>'
+                + '<td class="small text-muted">'+(r.date||'—')+'</td>'
+                + '<td class="small">'+(r.reference||'—')+'</td>'
+                + '<td><span class="badge bg-light text-dark border">'+(r.type||'—')+'</span></td>'
+                + '<td class="text-end small '+(parseFloat(r.inbound||0)>0?'text-success fw-600':'text-muted')+'">'
+                + (parseFloat(r.inbound||0)>0?fmt(r.inbound):'—')+'</td>'
+                + '<td class="text-end small '+(parseFloat(r.outbound||0)>0?'text-danger fw-600':'text-muted')+'">'
+                + (parseFloat(r.outbound||0)>0?fmt(r.outbound):'—')+'</td>'
+                + '<td class="text-end fw-600 '+(bal>=0?'text-primary':'text-danger')+'">'+fmt(bal)+'</td>'
+                + '</tr>';
+        });
+    }
+    document.getElementById('tbody').innerHTML = html;
+}
+
+function exportCsv(){
+    if(!reportData){ toastError('Load the report first.'); return; }
+    var rows=[['Date','Reference','Type','Inbound','Outbound','Balance']];
+    (reportData.rows||[]).forEach(function(r){ rows.push([r.date,r.reference,r.type,r.inbound,r.outbound,r.balance]); });
+    rows.push(['','','','Total In: '+reportData.totalInbound,'Total Out: '+reportData.totalOutbound,'Close: '+reportData.closingBalance]);
+    var csv=rows.map(function(r){ return r.map(function(c){ return '"'+(c||'')+'"'; }).join(','); }).join('\n');
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download='CashFlow_'+(window.activeFY?window.activeFY.label:'Report')+'.csv';
+    a.click();
+}
+
+document.addEventListener('fy:changed', function(){ loadReport(); });
+$(function(){ loadReport(); });
+</script>
+}

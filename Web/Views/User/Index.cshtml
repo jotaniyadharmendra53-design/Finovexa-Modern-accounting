@@ -1,0 +1,395 @@
+﻿@model IEnumerable<InvoiceSaaS.Application.DTOs.Users.UserListItemDto>
+@{
+    ViewData["Title"] = "Users";
+    ViewBag.ActiveMenu = "users";
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    var perms = (ViewBag.Permissions as HashSet<string>) ?? new HashSet<string>();
+    bool can(string c) => isSA || perms.Contains(c);
+    var me = ViewBag.CurrentUserId?.ToString() ?? "";
+
+    // Roles provided by controller
+    var roles = (ViewBag.Roles as IEnumerable<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>) ?? Enumerable.Empty<InvoiceSaaS.Application.DTOs.Common.SelectItemDto>();
+    int currentPage = (int)(ViewBag.Page ?? 1);
+    int pageSize = (int)(ViewBag.PageSize ?? 20);
+    int totalCount = (int)(ViewBag.TotalCount ?? 0);
+    int totalPages = (int)(ViewBag.TotalPages ?? 1);
+}
+
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <h4 class="mb-1">Users</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item active">Users</li>
+            </ol>
+        </nav>
+    </div>
+
+    @if (can("users.create"))
+    {
+        <button class="btn btn-primary" id="btnNewUser">
+            <i class="bi bi-person-plus me-1"></i> New User
+        </button>
+    }
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-3">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" class="form-control border-start-0" id="userSearch" placeholder="Search name or email…" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="roleFilter">
+                    <option value="">All Roles</option>
+                    @* @foreach (var r in Model.Select(u => u.RoleName).Distinct().OrderBy(x => x))
+                    {
+                        <option value="@r">@r</option>
+                    } *@
+                    @foreach (var r in roles.OrderBy(x => x.Text))
+                    {
+                        @* Use role.Text (name) as value to match existing row data-role (which contains role name) *@
+                        <option value="@r.Text">@r.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="1">Active</option>
+                    <option value="0">Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end text-muted fs-13">
+                <span id="rowCount">@Model.Count()</span> users
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="usersListCard" class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Joined</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="usersBody">
+                @foreach (var u in Model)
+                {
+                    var initials = u.FullName.Contains(' ')
+                    ? $"{u.FullName.Split(' ')[0][0]}{u.FullName.Split(' ')[^1][0]}".ToUpper()
+                    : u.FullName.Length > 0 ? u.FullName[0].ToString().ToUpper() : "U";
+                    <tr id="uRow_@u.Id"
+                        data-name="@u.FullName.ToLower()" data-email="@u.Email.ToLower()"
+                        data-role="@u.RoleName" data-active="@(u.IsActive ? 1 : 0)">
+                        <td>
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="navbar-user-avatar flex-shrink-0" style="width:38px;height:38px;font-size:.8rem;">@initials</div>
+                                <div>
+                                    <div class="fw-600 fs-13">
+                                        @u.FullName
+                                        @if (u.Id.ToString() == me)
+                                        {
+                                            <span class="badge ms-1" style="background:#EFF6FF;color:#3B82F6;font-size:.65rem;">You</span>
+                                        }
+                                    </div>
+                                    <div class="text-muted fs-12">@u.Email</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge" style="@(u.RoleIsSystem ? "background:#EFF6FF;color:#3B82F6;" : "background:#F3F4F6;color:#374151;")font-weight:600;font-size:.75rem;">
+                                @u.RoleName
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge @(u.IsActive ? "paid" : "cancelled")">
+                                <span style="width:6px;height:6px;border-radius:50%;background:@(u.IsActive ? "#10B981" : "#6B7280");display:inline-block;margin-right:4px;"></span>
+                                @(u.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </td>
+                        <td class="text-muted fs-13">
+                            @(u.LastLoginAt.HasValue? u.LastLoginAt.Value.ToString("dd MMM yy, HH:mm") : "Never")
+                        </td>
+                        <td class="text-muted fs-13">@u.CreatedAt.ToString("dd MMM yyyy")</td>
+                        <td class="text-end">
+                            <div class="d-flex justify-content-end gap-1">
+                                @if (can("users.edit"))
+                                {
+                                    <button class="btn btn-outline-primary"
+                                            onclick="editUser('@u.Id')" data-bs-toggle="tooltip" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    @if (u.Id.ToString() != me)
+                                    {
+                                        <button class="btn btn-icon @(u.IsActive ? "btn-outline-warning" : "btn-outline-success") border-2"
+                                                onclick="toggleUser('@u.Id','@u.FullName',@(u.IsActive ? 1 : 0))"
+                                                data-bs-toggle="tooltip" title="@(u.IsActive ? "Deactivate" : "Activate")">
+                                            <i class="bi @(u.IsActive ? "bi-pause-circle" : "bi-play-circle")"></i>
+                                        </button>
+                                    }
+                                }
+                                @if (can("users.delete") && u.Id.ToString() != me)
+                                {
+                                    <button class="btn btn-outline-danger"
+                                            onclick="deleteUser('@u.Id','@u.FullName')"
+                                            data-bs-toggle="tooltip" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @* Pagination *@
+    @if (totalPages > 0)
+    {
+        <div class="card-footer bg-transparent border-top d-flex align-items-center justify-content-between px-3 py-2">
+            <span class="text-muted small">
+                Showing @((currentPage - 1) * pageSize + 1)–@(Math.Min(currentPage * pageSize, totalCount)) of @totalCount users
+            </span>
+            <nav>
+                <ul class="pagination pagination-sm mb-0 gap-1">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage - 1, pageSize)">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    @{
+                        int start = Math.Max(1, currentPage - 2);
+                        int end   = Math.Min(totalPages, start + 4);
+                        start     = Math.Max(1, end - 4);
+                    }
+                    @if (start > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(1, pageSize)">1</a>
+                        </li>
+                        @if (start > 2)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                    }
+                    @for (int pg = start; pg <= end; pg++)
+                    {
+                        <li class="page-item @(pg == currentPage ? "active" : "")">
+                            <a class="page-link rounded" href="@BuildUrl(pg, pageSize)">@pg</a>
+                        </li>
+                    }
+                    @if (end < totalPages)
+                    {
+                        @if (end < totalPages - 1)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+                        <li class="page-item">
+                            <a class="page-link rounded" href="@BuildUrl(totalPages, pageSize)">@totalPages</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link rounded" href="@BuildUrl(currentPage + 1, pageSize)">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Per page:</span>
+                <select class="form-select form-select-sm" style="width:70px" id="pageSizeSelect">
+                    @foreach (var ps in new[] { 10, 20, 50, 100 })
+                    {
+                        if (ps == pageSize)
+                        {
+                            <option value="@ps" selected="selected">@ps</option>
+                        }
+                        else
+                        {
+                            <option value="@ps">@ps</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+    }
+
+@functions {
+    string BuildUrl(int page, int pageSize)
+    {
+        var q = new System.Collections.Generic.List<string>();
+        q.Add($"page={page}");
+        q.Add($"pageSize={pageSize}");
+        return "/User?" + string.Join("&", q);
+    }
+}
+    @if (!Model.Any())
+    {
+        <div class="empty-state py-5">
+            <div class="empty-state-icon"><i class="bi bi-people"></i></div>
+            <h6>No users found</h6>
+            <p class="text-muted fs-13">Add your first user to get started.</p>
+        </div>
+    }
+</div>
+
+<!-- User Modal -->
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus me-2 text-primary"></i>
+                    <span id="userModalTitle">New User</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" id="userModalBody">
+                <div class="text-center p-5"><div class="spinner-border text-primary"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const userModal = new bootstrap.Modal(document.getElementById('userModal'));
+
+        $('#btnNewUser').on('click', function () { $('#userModalTitle').text('New User'); loadUserForm('/User/Create'); });
+
+        function editUser(id) { $('#userModalTitle').text('Edit User'); loadUserForm('/User/Edit/' + id); }
+
+        function loadUserForm(url) {
+            $('#userModalBody').html('<div class="text-center p-5"><div class="spinner-border text-primary"></div></div>');
+            userModal.show();
+            $.get(url).done(html => $('#userModalBody').html(html))
+                      .fail(() => $('#userModalBody').html('<p class="text-danger p-4">Failed to load.</p>'));
+        }
+
+        function saveUser() {
+            const id    = $('#userForm').data('id') || null;
+            const isEdit = !!id;
+            const data  = {
+                fullName: $('#fullName').val().trim(),
+                email:    $('#userEmail').val().trim(),
+                phone:    $('#phone').val().trim(),
+                roleId:   $('#roleId').val(),
+                isActive: $('#isActive').is(':checked')
+            };
+            if (isEdit) data.id = id;
+            else {
+                data.password        = $('#password').val();
+                data.confirmPassword = $('#confirmPassword').val();
+                data.sendWelcomeEmail = $('#sendWelcome').is(':checked');
+            }
+
+            if (!data.fullName) { toastError('Full name is required.'); return; }
+            if (!data.email)    { toastError('Email is required.'); return; }
+            if (!isEdit && !data.password) { toastError('Password is required.'); return; }
+            if (!isEdit && data.password !== data.confirmPassword) { toastError('Passwords do not match.'); return; }
+            if (!data.roleId)   { toastError('Please select a role.'); return; }
+
+            const $btn = $('#saveUserBtn');
+            ajaxPost(isEdit ? '/User/Edit' : '/User/Create', data, $btn)
+                .done(res => {
+                    if (res.success) { userModal.hide(); toastSuccess(res.message); setTimeout(() => location.reload(), 700); }
+                    else showFormErrors(res.errors?.length ? res.errors : [res.message]);
+                })
+                .fail(() => toastError('Server error.'));
+        }
+
+        function toggleUser(id, name, active) {
+            const action = active ? 'Deactivate' : 'Activate';
+            Swal.fire({ icon:'question', title: action + ' User?', text: '"' + name + '" will be ' + action.toLowerCase() + 'd.',
+                showCancelButton: true, confirmButtonText: 'Yes, ' + action,
+                confirmButtonColor: active ? '#F59E0B' : '#10B981', cancelButtonColor: '#6B7280' })
+            .then(r => {
+                if (!r.isConfirmed) return;
+                $.ajax({ url: '/User/ToggleActive/' + id, type: 'POST',
+                         headers: { 'RequestVerificationToken': getCsrfToken() } })
+                 .done(res => { if (res.success) { toastSuccess(res.message); setTimeout(() => location.reload(), 600); } else toastError(res.message); });
+            });
+        }
+
+        function deleteUser(id, name) {
+            confirmDelete({ title: 'Delete "' + name + '"?', text: 'This user will be permanently deleted.' })
+            .then(r => {
+                if (!r.isConfirmed) return;
+                $.ajax({ url: '/User/Delete/' + id, type: 'DELETE', headers: { 'RequestVerificationToken': getCsrfToken() } })
+                 .done(res => {
+                     if (res.success) { $('#uRow_' + id).fadeOut(300, function(){ $(this).remove(); updateCount(); }); toastSuccess(res.message); }
+                     else Swal.fire({ icon:'error', title:'Error', text: res.message, confirmButtonColor:'#2563EB' });
+                 });
+            });
+        }
+
+        function updateCount() { $('#rowCount').text($('#usersBody tr:visible').length); }
+
+        $('#userSearch,#roleFilter,#statusFilter').on('input change', function () {
+            const search = $('#userSearch').val().toLowerCase();
+            const role   = $('#roleFilter').val();
+            const status = $('#statusFilter').val();
+            let n = 0;
+            $('#usersBody tr').each(function () {
+                const ok = (!search || $(this).data('name').includes(search) || $(this).data('email').includes(search))
+                        && (!role   || $(this).data('role') === role)
+                        && (!status || String($(this).data('active')) === status);
+                $(this).toggle(ok);
+                if (ok) n++;
+            });
+            $('#rowCount').text(n);
+        });
+
+        // AJAX pagination: load the users card via GET and replace the card HTML
+        function loadUsersFromUrl(url) {
+            $.get(url).done(function (html) {
+                var tmp = $('<div>').append($.parseHTML(html));
+                var newCard = tmp.find('#usersListCard');
+                if (newCard.length) {
+                    $('#usersListCard').replaceWith(newCard);
+                    setupPaginationHandlers();
+                } else {
+                    // fallback to full navigation
+                    window.location.href = url;
+                }
+            }).fail(function () { toastError('Failed to load users.'); });
+        }
+
+        function setupPaginationHandlers() {
+            // page-size selector — load first page with new size via AJAX
+            $('#pageSizeSelect').off('change').on('change', function () {
+                var ps = $(this).val();
+                var s = encodeURIComponent($('#userSearch').val() || '');
+                var role = encodeURIComponent($('#roleFilter').val() || '');
+                var status = encodeURIComponent($('#statusFilter').val() || '');
+                var url = '/User?page=1&pageSize=' + ps
+                    + (s ? '&search=' + s : '')
+                    + (role ? '&role=' + role : '')
+                    + (status ? '&status=' + status : '');
+                loadUsersFromUrl(url);
+            });
+
+            // pagination links — load via AJAX
+            $(document).off('click', '#usersListCard .pagination a').on('click', '#usersListCard .pagination a', function (e) {
+                e.preventDefault();
+                var href = $(this).attr('href');
+                if (href) loadUsersFromUrl(href);
+            });
+        }
+
+        // initialize handlers
+        setupPaginationHandlers();
+    </script>
+}

@@ -1,0 +1,263 @@
+﻿@model SaveEstimateDto
+@{
+    var isEdit = Model.Id.HasValue;
+    ViewData["Title"] = isEdit ? "Edit Estimate" : "New Estimate";
+    ViewBag.ActiveMenu = "estimates";
+    var existing = ViewBag.Existing as EstimateDto;
+    var clients = ViewBag.Clients as IEnumerable<SelectItemDto>
+                  ?? Enumerable.Empty<SelectItemDto>();
+    var products = ViewBag.Products as IEnumerable<SelectItemDto>
+?? Enumerable.Empty<SelectItemDto>();
+}
+
+@section Styles {
+<style>
+.line-row { background:var(--bs-body-bg);border-radius:8px;padding:10px 12px;margin-bottom:8px;border:1px solid var(--bs-border-color); }
+.line-row:hover { border-color: var(--bs-primary); }
+#totals-box { background:#F8FAFC;border-radius:12px;padding:20px; }
+.total-row { display:flex;justify-content:space-between;padding:5px 0;font-size:.9rem; }
+.total-row.grand { border-top:2px solid #E5E7EB;margin-top:8px;padding-top:12px;font-weight:700;font-size:1rem; }
+</style>
+}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h4 class="mb-1">@(isEdit ? "Edit Estimate" : "New Estimate")</h4>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="/Estimate">Estimates</a></li>
+            <li class="breadcrumb-item active">@(isEdit ? existing?.EstimateNumber : "New")</li>
+        </ol></nav>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/Estimate" class="btn btn-outline-secondary">Cancel</a>
+        <button class="btn btn-primary" id="btnSave" onclick="saveEstimate(false)">
+            <i class="bi bi-check-lg me-1"></i> Save Estimate
+        </button>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left: Line items -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-transparent border-bottom-0 pt-3 pb-0">
+                <h6 class="mb-0">Client &amp; Dates</h6>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Client <span class="text-danger">*</span></label>
+                        <select class="form-select" id="clientId">
+                            <option value="">— Select client —</option>
+                            @foreach(var c in clients){
+                                <option value="@c.Value" selected="@(Model.ClientId.ToString()==c.Value)">@c.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Issue Date</label>
+                        <input type="date" class="form-control" id="issueDate" value="@Model.IssueDate.ToString("yyyy-MM-dd")">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Expiry Date</label>
+                        <input type="date" class="form-control" id="expiryDate" value="@Model.ExpiryDate.ToString("yyyy-MM-dd")">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent d-flex align-items-center justify-content-between">
+                <h6 class="mb-0">Line Items</h6>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addLine()">
+                    <i class="bi bi-plus"></i> Add Item
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="d-none d-md-flex text-muted small mb-2 px-1">
+                    <span style="flex:3">Description</span>
+                    <span style="width:80px;text-align:left">Qty</span>
+                    <span style="width:120px;text-align:left">Unit Price</span>
+                    <span style="width:120px;text-align:left">Amount</span>
+                    <span style="width:36px"></span>
+                </div>
+                <div id="lineItems"></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2 w-100" onclick="addLine()">
+                    <i class="bi bi-plus me-1"></i> Add Row
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Totals + notes -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <div id="totals-box">
+                    <div class="total-row"><span class="text-muted">Subtotal</span><span id="tSubtotal">₹0.00</span></div>
+                    <div class="total-row">
+                        <span class="text-muted d-flex align-items-center gap-2">
+                            Tax %
+                            <input type="number" id="taxRate" class="form-control form-control-sm" style="width:70px" min="0" max="100" step="0.01" value="@Model.TaxRate" oninput="recalc()">
+                        </span>
+                        <span id="tTax">₹0.00</span>
+                    </div>
+                    <div class="total-row">
+                        <span class="text-muted d-flex align-items-center gap-2">
+                            Discount ₹
+                            <input type="number" id="discount" class="form-control form-control-sm" style="width:90px" min="0" step="0.01" value="@Model.Discount" oninput="recalc()">
+                        </span>
+                        <span id="tDiscount" class="text-success">-₹0.00</span>
+                    </div>
+                    <div class="total-row grand"><span>Total</span><span id="tTotal" class="text-primary">₹0.00</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <label class="form-label">Notes</label>
+                <textarea class="form-control mb-3" id="notes" rows="3" placeholder="Notes to client…">@Model.Notes</textarea>
+                <label class="form-label">Terms &amp; Conditions</label>
+                <textarea class="form-control" id="terms" rows="3" placeholder="Payment terms…">@Model.Terms</textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Initialize existing items data (Razor runs here, not in  Scripts) -->
+<script>
+var estimateId = '@(Model.Id?.ToString() ?? "")';
+var existingItemsData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(isEdit && existing != null ? existing.Items : new List<EstimateItemDto>()));
+</script>
+
+@section Scripts {
+<script>
+var lines = [];
+
+// Load product list for dropdown
+// var products = [];
+// $.get('/Product/GetSelectList', function(res){
+//     if(res.success) products = res.data || [];
+// });
+
+        var products = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    (products ?? []).Select(p => new { value = p.Value, text = p.Text })
+            ));
+
+// Initialize with existing items or empty
+if(existingItemsData && existingItemsData.length > 0){
+    existingItemsData.forEach(function(item){ addLine(item); });
+} else {
+    addLine();
+}
+
+function addLine(data){
+    data = data || {};
+    var idx = lines.length;
+    lines.push({});
+
+    var productOptions = products.map(function(p){
+        return '<option value="'+p.value+'" '+(data.productId===p.value?'selected':'')+'>'+p.text+'</option>';
+    }).join('');
+
+    var html = '<div class="line-row d-flex gap-2 align-items-start flex-wrap flex-md-nowrap" id="line_'+idx+'">'
+        + '<div style="flex:3;min-width:160px">'
+        +   '<input type="text" class="form-control form-control-sm desc" placeholder="Description…" value="'+escHtml(data.description||'')+'">'
+        +   (products.length?'<select class="form-select form-select-sm mt-1 product-sel" onchange="fillProduct('+idx+',this)"><option value="">— product —</option>'+productOptions+'</select>':'')
+        + '</div>'
+        + '<input type="number" class="form-control form-control-sm qty" style="width:80px" min="0.01" step="0.01" value="'+(data.quantity||1)+'" oninput="recalcLine('+idx+')">'
+        + '<input type="number" class="form-control form-control-sm price" style="width:120px" min="0" step="0.01" value="'+(data.unitPrice||0)+'" oninput="recalcLine('+idx+')">'
+        + '<input type="number" class="form-control form-control-sm amount bg-light" style="width:120px" readonly value="'+(data.amount||0)+'">'
+        + '<button type="button" class="btn btn-sm btn-outline-danger flex-shrink-0" onclick="removeLine('+idx+')">'
+        +   '<i class="bi bi-x-lg"></i></button>'
+        + '</div>';
+    document.getElementById('lineItems').insertAdjacentHTML('beforeend', html);
+    recalc();
+}
+
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+function fillProduct(idx, sel){
+    var row = document.getElementById('line_'+idx);
+    var product = products.find(function(p){ return p.value===sel.value; });
+    if(!product) return;
+    row.querySelector('.desc').value = product.text.split('(')[0].trim();
+    var price = parseFloat(product.text.match(/\(([^)]+)\)/)?.[1])||0;
+    row.querySelector('.price').value = price;
+    recalcLine(idx);
+}
+
+function recalcLine(idx){
+    var row = document.getElementById('line_'+idx);
+    if(!row) return;
+    var qty = parseFloat(row.querySelector('.qty').value)||0;
+    var price = parseFloat(row.querySelector('.price').value)||0;
+    row.querySelector('.amount').value = (qty*price).toFixed(2);
+    recalc();
+}
+
+function removeLine(idx){
+    var el = document.getElementById('line_'+idx);
+    if(el) el.remove();
+    recalc();
+}
+
+function recalc(){
+    var subtotal = 0;
+    document.querySelectorAll('.amount').forEach(function(el){ subtotal += parseFloat(el.value)||0; });
+    var taxRate = parseFloat(document.getElementById('taxRate').value)||0;
+    var discount = parseFloat(document.getElementById('discount').value)||0;
+    var tax = subtotal * taxRate / 100;
+    var total = subtotal + tax - discount;
+    document.getElementById('tSubtotal').textContent = '₹'+subtotal.toFixed(2);
+    document.getElementById('tTax').textContent = '₹'+tax.toFixed(2);
+    document.getElementById('tDiscount').textContent = '-₹'+discount.toFixed(2);
+    document.getElementById('tTotal').textContent = '₹'+total.toFixed(2);
+}
+
+function getItems(){
+    var items = [];
+    document.querySelectorAll('[id^="line_"]').forEach(function(row){
+        var desc = row.querySelector('.desc').value.trim();
+        if(!desc) return;
+        var sel = row.querySelector('.product-sel');
+        items.push({
+            productId: sel?sel.value||null:null,
+            description: desc,
+            quantity: parseFloat(row.querySelector('.qty').value)||1,
+            unitPrice: parseFloat(row.querySelector('.price').value)||0,
+            amount: parseFloat(row.querySelector('.amount').value)||0
+        });
+    });
+    return items;
+}
+
+function saveEstimate(send){
+    var clientId = document.getElementById('clientId').value;
+    if(!clientId){ toastError('Please select a client.'); return; }
+    var items = getItems();
+    if(!items.length){ toastError('Add at least one line item.'); return; }
+    var $btn = $('#btnSave').prop('disabled',true).html('<span class="spinner-border spinner-border-sm"></span> Saving…');
+    var dto = {
+        id: estimateId || null,
+        clientId: clientId,
+        issueDate: document.getElementById('issueDate').value,
+        expiryDate: document.getElementById('expiryDate').value,
+        taxRate: parseFloat(document.getElementById('taxRate').value)||0,
+        discount: parseFloat(document.getElementById('discount').value)||0,
+        notes: document.getElementById('notes').value.trim()||null,
+        terms: document.getElementById('terms').value.trim()||null,
+        items: items
+    };
+    ajaxPost('/Estimate/Save', dto, $btn).done(function(res){
+        $btn.prop('disabled',false).html('<i class="bi bi-check-lg me-1"></i> Save Estimate');
+        if(res.success){
+            toastSuccess(res.message);
+            setTimeout(function(){ window.location='/Estimate/Detail/'+res.data.id; }, 800);
+        } else toastError(res.message);
+    });
+}
+</script>
+}

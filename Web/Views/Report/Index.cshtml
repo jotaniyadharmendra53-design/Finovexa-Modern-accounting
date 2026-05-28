@@ -1,0 +1,219 @@
+﻿@model InvoiceSaaS.Application.DTOs.Dashboard.DashboardStatsDto
+@{
+    ViewData["Title"]  = "Reports";
+    ViewBag.ActiveMenu = "reports";
+}
+
+<div class="page-header d-flex align-items-center justify-content-between">
+    <div>
+        <h4 class="mb-1">Reports &amp; Analytics</h4>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/Dashboard">Dashboard</a></li>
+                <li class="breadcrumb-item active">Reports</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon green"><i class="bi bi-currency-rupee"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">@Model?.TotalRevenue.ToString("N0")</div>
+                <div class="stat-label">Total Revenue</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon amber"><i class="bi bi-hourglass-split"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">@Model?.PendingAmount.ToString("N0")</div>
+                <div class="stat-label">Pending</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon red"><i class="bi bi-exclamation-triangle"></i></div>
+            <div class="stat-info">
+                <div class="stat-value text-danger">@Model?.OverdueAmount.ToString("N0")</div>
+                <div class="stat-label">Overdue</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon indigo"><i class="bi bi-calendar-check"></i></div>
+            <div class="stat-info">
+                <div class="stat-value">@Model?.ThisMonthTotal.ToString("N0")</div>
+                <div class="stat-label">This Month</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-8">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span class="card-title">Monthly Revenue Trend</span>
+            </div>
+            <div class="card-body"><canvas id="revenueChart" height="200"></canvas></div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header"><span class="card-title">Invoice Status Split</span></div>
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                <canvas id="statusChart" height="200" style="max-width:200px;"></canvas>
+                <div class="mt-3 w-100">
+                    @{
+                        var statusItems = new[] {
+                            ("Draft",   Model?.DraftCount   ?? 0, "#6B7280"),
+                            ("Sent",    Model?.SentCount    ?? 0, "#3B82F6"),
+                            ("Paid",    Model?.PaidCount    ?? 0, "#10B981"),
+                            ("Overdue", Model?.OverdueCount ?? 0, "#EF4444"),
+                        };
+                        var total = statusItems.Sum(s => s.Item2);
+                    }
+                    @foreach (var (label, count, color) in statusItems)
+                    {
+                        var pct = total > 0 ? (int)Math.Round((double)count / total * 100) : 0;
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="d-flex align-items-center gap-2 fs-13">
+                                <span style="width:10px;height:10px;border-radius:50%;background:@color;display:inline-block;flex-shrink:0;"></span>
+                                @label
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1" style="width:80px;height:6px;border-radius:3px;">
+                                    <div class="progress-bar" style="width:@pct%;background:@color;border-radius:3px;"></div>
+                                </div>
+                                <span class="fw-600 fs-13" style="min-width:24px;text-align:right;">@count</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header d-flex align-items-center justify-content-between">
+        <span class="card-title">Invoice Summary</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th class="text-end">Count</th>
+                    <th class="text-end">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="status-badge draft">Draft</span></td>
+                    <td class="text-end fw-600">@(Model?.DraftCount ?? 0)</td>
+                    <td class="text-end text-muted">—</td>
+                </tr>
+                <tr>
+                    <td><span class="status-badge sent">Sent</span></td>
+                    <td class="text-end fw-600">@(Model?.SentCount ?? 0)</td>
+                    <td class="text-end fw-600">@(Model?.PendingAmount.ToString("N2"))</td>
+                </tr>
+                <tr>
+                    <td><span class="status-badge paid">Paid</span></td>
+                    <td class="text-end fw-600">@(Model?.PaidCount ?? 0)</td>
+                    <td class="text-end fw-600 text-success">@(Model?.TotalRevenue.ToString("N2"))</td>
+                </tr>
+                <tr>
+                    <td><span class="status-badge overdue">Overdue</span></td>
+                    <td class="text-end fw-600">@(Model?.OverdueCount ?? 0)</td>
+                    <td class="text-end fw-600 text-danger">@(Model?.OverdueAmount.ToString("N2"))</td>
+                </tr>
+                <tr style="border-top:2px solid #E5E7EB;background:#F9FAFB;">
+                    <td class="fw-700">Total Invoices</td>
+                    <td class="text-end fw-700">@(Model?.TotalInvoices ?? 0)</td>
+                    <td class="text-end fw-700" style="color:var(--primary);">
+                        @((((Model?.TotalRevenue ?? 0) + (Model?.PendingAmount ?? 0) + (Model?.OverdueAmount ?? 0))).ToString("N2"))
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+$(function () {
+    const labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        Model?.MonthlyRevenue?.Any() == true
+            ? Model.MonthlyRevenue.Select(m => m.Label).ToList()
+            : Enumerable.Range(0, 12).Select(i => DateTime.Now.AddMonths(-11 + i).ToString("MMM yy")).ToList()
+    ));
+    const amounts = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+        Model?.MonthlyRevenue?.Select(m => m.Amount).ToList()
+        ?? Enumerable.Repeat(0m, 12).ToList()
+    ));
+
+    new Chart(document.getElementById('revenueChart'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Revenue',
+                data: amounts,
+                backgroundColor: 'rgba(59,130,246,0.85)',
+                borderRadius: 6,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1F2937', padding: 10,
+                    callbacks: { label: ctx => ' ' + formatCurrency(ctx.parsed.y) }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { color: '#9CA3AF', font: { size: 11 } } },
+                y: { grid: { color: '#F3F4F6' }, ticks: { color: '#9CA3AF', font: { size: 11 },
+                        callback: v => '₹' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) } }
+            }
+        }
+    });
+
+    const d = @(Model?.DraftCount ?? 0), s = @(Model?.SentCount ?? 0),
+          p = @(Model?.PaidCount ?? 0), o = @(Model?.OverdueCount ?? 0);
+    new Chart(document.getElementById('statusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Draft','Sent','Paid','Overdue'],
+            datasets: [{
+                data: (d+s+p+o) > 0 ? [d,s,p,o] : [1,0,0,0],
+                backgroundColor: ['#E5E7EB','#3B82F6','#10B981','#EF4444'],
+                borderWidth: 0, hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true, cutout: '72%',
+            plugins: {
+                legend: { display: false },
+                tooltip: { backgroundColor:'#1F2937', padding:10,
+                    callbacks:{ label: ctx => ' '+ctx.label+': '+ctx.parsed }}
+            }
+        }
+    });
+});
+</script>
+}

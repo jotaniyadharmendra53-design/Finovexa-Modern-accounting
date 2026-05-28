@@ -1,0 +1,139 @@
+﻿@*
+    SHARED FY PICKER PARTIAL
+    File: Views/Shared/_FYPicker.cshtml
+
+    Usage in any report view:
+        @await Html.PartialAsync("_FYPicker")
+
+    Requires ViewBag.FiscalYears (IEnumerable<FiscalYearDto>)
+    and ViewBag.CurrentFY (FiscalYearDto?) set by AccountingController.
+
+    Emits:
+        window.fyList          – array of {id, label, startDate, endDate, status}
+        window.activeFY        – currently selected FY object
+        window.getFYFilter()   – returns ?dateFrom=&dateTo=&fyLabel= query string
+        window.fyPickerReady   – Promise that resolves when picker is initialized
+        document fires 'fy:changed' event when selection changes
+*@
+
+@using InvoiceSaaS.Application.DTOs.FiscalYear
+@{
+    var fyList = (ViewBag.FiscalYears as IEnumerable<FiscalYearDto>)
+                   ?? Enumerable.Empty<FiscalYearDto>();
+    var currentFY = ViewBag.CurrentFY as FiscalYearDto;
+    var fyJson = System.Text.Json.JsonSerializer.Serialize(
+        fyList.Select(f => new
+        {
+            id = f.Id,
+            label = f.Label,
+            startDate = f.StartDate.ToString("yyyy-MM-dd"),
+            endDate = f.EndDate.ToString("yyyy-MM-dd"),
+            status = f.Status,
+            statusName = f.StatusName,
+            isDefault = f.IsDefault
+        }));
+}
+
+<div class="d-flex align-items-center gap-2 flex-wrap" id="fyPickerWrap">
+    <div class="d-flex align-items-center gap-2"
+         style="background:var(--bs-body-bg);border:1px solid var(--bs-border-color);
+        border-radius:8px;padding:5px 12px;">
+        <i class="bi bi-calendar3 text-primary" style="font-size:.85rem;"></i>
+        <select id="fySelect" class="form-select form-select-sm border-0 p-0 shadow-none"
+                style="font-size:.82rem;font-weight:600;min-width:130px;background:transparent;"
+                onchange="onFYChange(this.value)">
+            @foreach (var fy in fyList)
+            {
+                var selected = (currentFY?.Id == fy.Id) || (!fyList.Any(x => x.IsDefault) && fy == fyList.First());
+                if (selected)
+                {
+                    <option value="@fy.Id" selected="selected">@fy.Label</option>
+                }
+                else
+                {
+                    <option value="@fy.Id">@fy.Label</option>
+                }
+            }
+            @if (!fyList.Any())
+            {
+                <option value="">No fiscal years</option>
+            }
+        </select>
+    </div>
+    <span id="fyPeriodLabel"
+          style="font-size:.75rem;color:var(--bs-secondary-color);">
+        @if (currentFY != null)
+        {
+            @($"{currentFY.StartDate:dd MMM yyyy} – {currentFY.EndDate:dd MMM yyyy}")
+        }
+    </span>
+    <span id="fyStatusBadge" class="badge"
+          style="font-size:.68rem;
+        @(currentFY?.Status == 0 ? "background:#ECFDF5;color:#065F46;" :
+                    currentFY?.Status == 1 ? "background:#FFFBEB;color:#92400E;" :
+                    "background:#F1F5F9;color:#475569;")">
+        @if (currentFY != null)
+        {
+            @(currentFY.Status == 0 ? "Open" : currentFY.Status == 1 ? "Locked" : "Future")
+        }
+    </span>
+</div>
+
+<script>
+    (function(){
+        window.fyList = @Html.Raw(fyJson);
+
+        // Find the default/selected FY
+        var selectEl  = document.getElementById('fySelect');
+        var initId    = selectEl ? selectEl.value : null;
+        window.activeFY = window.fyList.find(function(f){ return f.id === initId; })
+                       || window.fyList.find(function(f){ return f.isDefault; })
+                       || window.fyList[0]
+                       || null;
+
+        // Build query string for AJAX calls
+        window.getFYFilter = function(){
+            if(!window.activeFY) return '';
+            return '?dateFrom=' + window.activeFY.startDate
+                 + '&dateTo='   + window.activeFY.endDate
+                 + '&fyLabel='  + encodeURIComponent(window.activeFY.label);
+        };
+
+        // Called when dropdown changes
+        window.onFYChange = function(fyId){
+            var fy = window.fyList.find(function(f){ return f.id === fyId; });
+            if(!fy) return;
+            window.activeFY = fy;
+
+            // Update period label
+            var pLabel = document.getElementById('fyPeriodLabel');
+            if(pLabel) pLabel.textContent = formatDate(fy.startDate) + ' – ' + formatDate(fy.endDate);
+
+            // Update status badge
+            var badge = document.getElementById('fyStatusBadge');
+            if(badge){
+                var styles = {
+                    0: 'background:#ECFDF5;color:#065F46;',
+                    1: 'background:#FFFBEB;color:#92400E;',
+                    2: 'background:#F1F5F9;color:#475569;'
+                };
+                badge.style.cssText = 'font-size:.68rem;' + (styles[fy.status] || styles[2]);
+                badge.textContent   = ['Open','Locked','Future'][fy.status] || 'Unknown';
+            }
+
+            // Fire custom event — report pages listen for this
+            document.dispatchEvent(new CustomEvent('fy:changed', { detail: fy }));
+        };
+
+        function formatDate(s){
+            if(!s) return '';
+            var d = new Date(s);
+            var months = ['Jan','Feb','Mar','Apr','May','Jun',
+                          'Jul','Aug','Sep','Oct','Nov','Dec'];
+            return d.getDate() + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+        }
+
+        // Resolve picker ready
+        window.fyPickerReady = Promise.resolve(window.activeFY);
+    })();
+</script>

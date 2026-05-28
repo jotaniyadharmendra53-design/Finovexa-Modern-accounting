@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Application/InvoiceSaaS.Application.csproj" Id="73954902-47b8-4914-8502-69ed7bc1a386" />
+  <Project Path="Domain/InvoiceSaaS.Domain.csproj" Id="ae00b327-d6b8-4fed-bdea-12e4548e858c" />
+  <Project Path="Infrastructure/InvoiceSaaS.Infrastructure.csproj" Id="5f904e72-60e6-4b98-aea1-66e16931c5c8" />
+  <Project Path="Web/InvoiceSaaS.Web.csproj" Id="df0a4097-af31-4802-807b-dae9437de603" />
+</Solution>

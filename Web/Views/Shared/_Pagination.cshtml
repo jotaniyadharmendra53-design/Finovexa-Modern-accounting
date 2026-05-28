@@ -1,0 +1,108 @@
+﻿@* ============================================================
+   _Pagination.cshtml — Shared pagination partial
+   File: Web/Views/Shared/_Pagination.cshtml
+   
+   Usage in any view:
+     @await Html.PartialAsync("_Pagination", new PaginationModel {
+         Page = ViewBag.Page, TotalPages = ViewBag.TotalPages,
+         PageSize = ViewBag.PageSize, RouteValues = new { search = ViewBag.Search }
+     })
+   ============================================================ *@
+
+@model InvoiceSaaS.Web.Models.PaginationModel
+@{
+    var page       = Model?.Page ?? 1;
+    var totalPages = Model?.TotalPages ?? 1;
+    var pageSize   = Model?.PageSize ?? 20;
+    var total      = Model?.TotalCount ?? 0;
+    var from       = total == 0 ? 0 : (page - 1) * pageSize + 1;
+    var to         = Math.Min(page * pageSize, total);
+}
+
+@if (totalPages <= 1 && total == 0) { return; }
+
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 px-1 mt-3">
+    <div class="text-muted" style="font-size:.82rem;">
+        @if (total > 0)
+        {
+            <span>Showing <strong>@from–@to</strong> of <strong>@total</strong></span>
+        }
+        else
+        {
+            <span>No results</span>
+        }
+    </div>
+
+    @if (totalPages > 1)
+    {
+    <nav>
+        <ul class="pagination pagination-sm mb-0 gap-1">
+            @* Previous *@
+            <li class="page-item @(page <= 1 ? "disabled" : "")">
+                <a class="page-link rounded-2"
+                   href="@(page > 1 ? Url.Action(null, new { page = page - 1, pageSize = pageSize }) : "#")">
+                    <i class="bi bi-chevron-left" style="font-size:.7rem;"></i>
+                </a>
+            </li>
+
+            @* Page numbers — show window of 5 around current page *@
+            @{
+                int winStart = Math.Max(1, page - 2);
+                int winEnd   = Math.Min(totalPages, winStart + 4);
+                if (winEnd - winStart < 4) winStart = Math.Max(1, winEnd - 4);
+            }
+
+            @if (winStart > 1)
+            {
+                <li class="page-item">
+                    <a class="page-link rounded-2" href="@Url.Action(null, new { page = 1, pageSize })">1</a>
+                </li>
+                if (winStart > 2)
+                {
+                    <li class="page-item disabled"><span class="page-link border-0 bg-transparent">…</span></li>
+                }
+            }
+
+            @for (int p = winStart; p <= winEnd; p++)
+            {
+                <li class="page-item @(p == page ? "active" : "")">
+                    <a class="page-link rounded-2"
+                       href="@Url.Action(null, new { page = p, pageSize })">@p</a>
+                </li>
+            }
+
+            @if (winEnd < totalPages)
+            {
+                if (winEnd < totalPages - 1)
+                {
+                    <li class="page-item disabled"><span class="page-link border-0 bg-transparent">…</span></li>
+                }
+                <li class="page-item">
+                    <a class="page-link rounded-2"
+                       href="@Url.Action(null, new { page = totalPages, pageSize })">@totalPages</a>
+                </li>
+            }
+
+            @* Next *@
+            <li class="page-item @(page >= totalPages ? "disabled" : "")">
+                <a class="page-link rounded-2"
+                   href="@(page < totalPages ? Url.Action(null, new { page = page + 1, pageSize }) : "#")">
+                    <i class="bi bi-chevron-right" style="font-size:.7rem;"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+    }
+
+    @* Page size selector *@
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-muted" style="font-size:.82rem;">Per page:</span>
+        <select class="form-select form-select-sm" style="width:70px;"
+                onchange="window.location.href='@Url.Action(null, new { page = 1 })'+'&pageSize='+this.value">
+            @foreach (var ps in new[]{10,20,50,100})
+            {
+                <option value="@ps" selected="@(ps == pageSize ? "selected" : null)">@ps</option>
+            }
+        </select>
+    </div>
+</div>

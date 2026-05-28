@@ -1,0 +1,348 @@
+﻿@model InvoiceSaaS.Application.DTOs.Dashboard.DashboardStatsDto
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Dashboard";
+    string Fmt(decimal v) => v.ToString("N2");
+    string FmtK(decimal v) => v >= 1000 ? (v / 1000m).ToString("N1") + "K" : v.ToString("N0");
+    var perms = ViewBag.Permissions as HashSet<string> ?? new HashSet<string>();
+    bool isSA = (bool)(ViewBag.IsSuperAdmin ?? false);
+    bool Can(string c) => isSA || perms.Contains(c);
+    var total = Model.TotalInvoices > 0 ? Model.TotalInvoices : 1;
+    double PctOf(int n) => Math.Round((double)n / total * 100, 1);
+    var rate = Model.TotalInvoices > 0 ? (int)Math.Round((double)Model.PaidCount / Model.TotalInvoices * 100) : 0;
+
+    // Base currency symbol for the company
+    var companyCurrency = ViewBag.CompanyCurrency as string ?? "INR";
+    var currencySymbols = new Dictionary<string, string>
+    {
+        ["INR"] = "₹",
+        ["USD"] = "$",
+        ["EUR"] = "€",
+        ["GBP"] = "£",
+        ["AUD"] = "A$",
+        ["CAD"] = "C$",
+        ["SGD"] = "S$",
+        ["AED"] = "AED",
+        ["JPY"] = "¥",
+        ["CNY"] = "¥"
+    };
+    string Sym(string c) => currencySymbols.GetValueOrDefault(c, c);
+    string BaseSym = Sym(companyCurrency);
+
+    // Is this truly multi-currency? (more than 1 currency in breakdown)
+    bool isMultiCurrency = Model.CurrencyBreakdown?.Count > 1;
+
+}
+
+
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h4 class="mb-1 fw-bold">Dashboard</h4>
+        <p class="text-muted mb-0" style="font-size:.83rem;">Welcome back, <strong>@ViewBag.CurrentUserName</strong> &nbsp;·&nbsp; @DateTime.Now.ToString("dddd, dd MMM yyyy")</p>
+    </div>
+    @if (Can("invoices.create"))
+    {
+        <a href="/Invoice/Create" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>New Invoice</a>
+    }
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-start justify-content-between mb-3">
+                <div class="stat-icon" style="background:#EFF6FF;"><i class="bi bi-currency-rupee text-primary" style="font-size:1.3rem;"></i></div>
+                <span class="badge" style="background:#ECFDF5;color:#059669;font-size:.7rem;"><i class="bi bi-check-circle me-1"></i>Paid</span>
+            </div>
+            <div class="stat-value">₹@FmtK(Model.TotalRevenue)</div>
+            <div class="stat-label">Total Revenue</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-start justify-content-between mb-3">
+                <div class="stat-icon" style="background:#EFF6FF;"><i class="bi bi-hourglass-split" style="color:#3B82F6;font-size:1.1rem;"></i></div>
+                <span class="badge" style="background:#EFF6FF;color:#1D4ED8;font-size:.7rem;">@Model.SentCount Sent</span>
+            </div>
+            <div class="stat-value">₹@FmtK(Model.PendingAmount)</div>
+            <div class="stat-label">Pending Amount</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-start justify-content-between mb-3">
+                <div class="stat-icon" style="background:#FEF2F2;"><i class="bi bi-exclamation-triangle" style="color:#EF4444;font-size:1.1rem;"></i></div>
+                <span class="badge" style="background:#FEF2F2;color:#DC2626;font-size:.7rem;">@Model.OverdueCount Overdue</span>
+            </div>
+            <div class="stat-value text-danger">₹@FmtK(Model.OverdueAmount)</div>
+            <div class="stat-label">Overdue Amount</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="stat-card">
+            <div class="d-flex align-items-start justify-content-between mb-3">
+                <div class="stat-icon" style="background:#F0FDF4;"><i class="bi bi-people" style="color:#10B981;font-size:1.1rem;"></i></div>
+                <span class="badge" style="background:#F0FDF4;color:#059669;font-size:.7rem;">Active</span>
+            </div>
+            <div class="stat-value">@Model.TotalClients</div>
+            <div class="stat-label">Total Clients</div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ── Multi-Currency Breakdown (shown only when multi-currency) ── -->
+@if (isMultiCurrency && Model.CurrencyBreakdown?.Any() == true)
+{
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <span>
+                <i class="bi bi-currency-exchange me-2 text-primary"></i>
+                Revenue by Currency
+            </span>
+            <span class="text-muted" style="font-size:.78rem;">
+                Converted to @companyCurrency at invoice exchange rate
+            </span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Currency</th>
+                            <th class="text-end">Revenue (Paid)</th>
+                            <th class="text-end">Pending</th>
+                            <th class="text-end">≈ @companyCurrency</th>
+                            <th class="text-end">Invoices</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.CurrencyBreakdown.OrderByDescending(r => r.BaseRevenue))
+                        {
+                            var sym = Sym(row.CurrencyCode);
+                            var isBase = row.CurrencyCode == companyCurrency;
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div style="width:32px;height:32px;border-radius:8px;
+                                            background:linear-gradient(135deg,#4F46E5,#7C3AED);
+                                            display:flex;align-items:center;justify-content:center;
+                                            color:#fff;font-size:.75rem;font-weight:700;flex-shrink:0;">
+                                            @row.CurrencyCode.Substring(0, 2)
+                                        </div>
+                                        <div>
+                                            <div class="fw-600 fs-13">@row.CurrencyCode</div>
+                                            @if (isBase)
+                                            {
+                                                <div class="text-muted" style="font-size:.7rem;">Base currency</div>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end fw-600" style="color:#059669;">
+                                    @sym@Fmt(row.Revenue)
+                                </td>
+                                <td class="text-end text-muted fs-13">
+                                    @sym@Fmt(row.Pending)
+                                </td>
+                                <td class="text-end fw-600">
+                                    @if (isBase)
+                                    {
+                                        <span class="text-muted fs-12">—</span>
+                                    }
+                                    else
+                                    {
+                                        @($"{BaseSym}{Fmt(row.BaseRevenue)}")
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <span class="badge" style="background:#EEF2FF;color:#4F46E5;">
+                                        @row.InvoiceCount
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="3" class="fw-700">Total (converted to @companyCurrency)</td>
+                            <td class="text-end fw-700" style="color:#4F46E5;">
+                                @BaseSym@Fmt(Model.TotalRevenue)
+                            </td>
+                            <td class="text-end fw-700">@Model.PaidCount</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+
+<!-- Status Overview + Quick Actions -->
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-bar-chart me-2 text-primary"></i>Invoice Overview</span>
+                <span class="text-muted" style="font-size:.78rem;">@Model.TotalInvoices total</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    @foreach (var row in new[] {
+                                        new { Label="Draft",   Count=Model.DraftCount,   Bg="#9CA3AF", TrackBg="#F3F4F6" },
+                                        new { Label="Sent",    Count=Model.SentCount,    Bg="#3B82F6", TrackBg="#EFF6FF" },
+                                        new { Label="Paid",    Count=Model.PaidCount,    Bg="#10B981", TrackBg="#ECFDF5" },
+                                        new { Label="Overdue", Count=Model.OverdueCount, Bg="#EF4444", TrackBg="#FEF2F2" }
+                                        })
+                    {
+                        <div class="d-flex align-items-center mb-3">
+                            <div style="width:90px;font-size:.8rem;color:#374151;font-weight:600;">@row.Label</div>
+                            <div class="flex-grow-1 me-3">
+                                <div class="progress" style="height:8px;border-radius:6px;background:@row.TrackBg;">
+                                    <div class="progress-bar" style="width:@PctOf(row.Count)%;background:@row.Bg;border-radius:6px;transition:width .6s ease;"></div>
+                                </div>
+                            </div>
+                            <div style="width:40px;text-align:right;font-size:.82rem;font-weight:700;color:@row.Bg;">@row.Count</div>
+                        </div>
+                    }
+                </div>
+                <div class="rounded-3 p-3 d-flex align-items-center gap-3" style="background:linear-gradient(135deg,#EFF6FF,#E0E7FF);">
+                    <div style="width:44px;height:44px;background:var(--primary);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                        <i class="bi bi-calendar-check text-white"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:.73rem;color:#2563EB;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">This Month</div>
+                        <div style="font-size:1.5rem;font-weight:800;color:#1E293B;">₹@Fmt(Model.ThisMonthTotal)</div>
+                    </div>
+                    <div class="ms-auto text-end">
+                        <div style="font-size:.75rem;color:#3B82F6;">Revenue collected</div>
+                        <div style="font-size:.8rem;font-weight:600;color:#2563EB;">@Model.PaidCount invoices paid</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-lightning me-2 text-warning"></i>Quick Actions</div>
+            <div class="card-body d-flex flex-column gap-2">
+                @if (Can("invoices.create"))
+                {
+                    <a href="/Invoice/Create" class="btn btn-primary d-flex align-items-center gap-2"><i class="bi bi-plus-lg"></i>Create Invoice</a>
+                }
+                @if (Can("clients.create"))
+                {
+                    <a href="/Client" class="btn btn-outline-primary d-flex align-items-center gap-2"><i class="bi bi-person-plus"></i>Add Client</a>
+                }
+                @if (Can("invoices.view") && Model.OverdueCount > 0)
+                {
+                    <a href="/Invoice?status=3" class="btn btn-outline-danger d-flex align-items-center gap-2">
+                        <i class="bi bi-exclamation-triangle"></i>Overdue Invoices
+                        <span class="badge bg-danger ms-auto">@Model.OverdueCount</span>
+                    </a>
+                }
+                @if (Can("reports.view"))
+                {
+                    <a href="/Report" class="btn btn-outline-secondary d-flex align-items-center gap-2"><i class="bi bi-bar-chart-line"></i>View Reports</a>
+                }
+                <div class="mt-auto pt-3 border-top">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span style="font-size:.78rem;color:var(--text-muted);">Collection rate</span>
+                        <strong style="font-size:.78rem;color:#10B981;">@rate%</strong>
+                    </div>
+                    <div class="progress" style="height:6px;border-radius:6px;">
+                        <div class="progress-bar bg-success" style="width:@rate%;border-radius:6px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent + Overdue tables -->
+<div class="row g-3">
+    <div class="col-12 col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-clock-history me-2 text-primary"></i>Recent Invoices</span>
+                <a href="/Invoice" class="btn btn-sm btn-outline-primary" style="font-size:.77rem;padding:3px 10px;">View All</a>
+            </div>
+            <div class="card-body p-0">
+                @if (Model.RecentInvoices?.Any() == true)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead><tr><th>Invoice</th><th>Client</th><th>Due</th><th>Total</th><th>Status</th></tr></thead>
+                            <tbody>
+                                @foreach (var inv in Model.RecentInvoices)
+                                {
+                                    <tr class="cursor-pointer" onclick="window.location='/Invoice/Detail/@inv.Id'" style="cursor:pointer;">
+                                        <td><span class="fw-semibold text-primary" style="font-size:.83rem;">@inv.InvoiceNumber</span></td>
+                                        <td style="font-size:.82rem;max-width:120px;" class="text-truncate">@inv.ClientName</td>
+                                        <td style="font-size:.8rem;color:@(inv.IsOverdue ? "#EF4444" : "var(--text-muted)");">@inv.DueDate.ToString("dd MMM")</td>
+                                        <td style="font-size:.83rem;font-weight:600;">₹@Fmt(inv.Total)</td>
+                                        <td><span class="badge badge-@inv.StatusName.ToLower()">@inv.StatusName</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <i class="bi bi-file-earmark-text text-muted" style="font-size:3rem;opacity:.3;"></i>
+                        <p class="mt-2 text-muted mb-3" style="font-size:.85rem;">No invoices yet</p>
+                        @if (Can("invoices.create"))
+                        {
+                            <a href="/Invoice/Create" class="btn btn-sm btn-primary">Create your first invoice</a>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span style="color:#DC2626;"><i class="bi bi-exclamation-triangle me-2"></i>Overdue</span>
+                @if (Model.OverdueCount > 0)
+                {
+                    <span class="badge bg-danger">@Model.OverdueCount</span>
+                }
+            </div>
+            <div class="card-body p-0">
+                @if (Model.OverdueInvoices?.Any() == true)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead><tr><th>Invoice</th><th>Client</th><th>Due</th><th>Balance</th></tr></thead>
+                            <tbody>
+                                @foreach (var inv in Model.OverdueInvoices)
+                                {
+                                    <tr class="cursor-pointer" onclick="window.location='/Invoice/Detail/@inv.Id'" style="cursor:pointer;">
+                                        <td><span class="fw-semibold text-danger" style="font-size:.83rem;">@inv.InvoiceNumber</span></td>
+                                        <td style="font-size:.82rem;max-width:100px;" class="text-truncate">@inv.ClientName</td>
+                                        <td style="font-size:.8rem;color:#EF4444;">@inv.DueDate.ToString("dd MMM")</td>
+                                        <td style="font-size:.83rem;font-weight:700;color:#DC2626;">$@Fmt(inv.BalanceDue)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <div style="font-size:3rem;">🎉</div>
+                        <p class="mt-2 text-muted" style="font-size:.85rem;">No overdue invoices!</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
